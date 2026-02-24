@@ -14,6 +14,7 @@
     <Authors>René Stein</Authors>
     <IsAotCompatible Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net7.0'))">true</IsAotCompatible>
     <IncludeSymbols>true</IncludeSymbols>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
