@@ -3,7 +3,7 @@
 
 A simple asynchronous .NET library for parsing and generating [TOML](https://toml.io/) (Tom's Obvious Minimal Language) files.
 - ✅ Supports .NET 10, .NET 9, .NET Framework 4.8, .NET Standard 2.0.
-- ✅ Tested against [TOML platform agnostic tests](https://github.com/toml-lang/toml-test) (TOML 1.0.0 and 1.1.0 compliant).
+- ✅ Tested against [TOML platform agnostic test suite](https://github.com/toml-lang/toml-test) (TOML 1.0.0 and 1.1.0 compliant).
 
 ## Features
 
@@ -184,10 +184,11 @@ await File.WriteAllTextAsync("appsettings.toml", updatedConfig);
 // port = 8080
 // hosts = ["localhost", "127.0.0.1", "example.com"]
 ```
-
+## Public API Doc
+[API DOC](https://renestein.github.io/RStein.TOML_P/api/RStein.TOML.html)
 ## License
 
-See LICENSE file for details.
+The software is released under the MIT license. See [LICENSE.md](LICENSE.md) file for details.
 
 ## Contributing
 
