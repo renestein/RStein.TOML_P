@@ -46,7 +46,8 @@ jobs:
       working-directory: ${{ github.workspace }}
   deploy-docs:
     runs-on: ubuntu-latest   
-    needs: [build_ubuntu] 
+    needs: [build_ubuntu]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
       contents: read
       pages: write
