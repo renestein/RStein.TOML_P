@@ -1,0 +1,38 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dotnet/docfx/main/schemas/docfx.schema.json",
+  "metadata": [
+    {
+      "src": [
+        {
+          "src": "../RStein.TOML",
+          "files": [
+            "**/*.csproj"
+          ]
+        }
+      ],
+      "dest": "api"
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "files": ["api/**.yml", "api/index.md"]
+      },   
+      {
+			"files": ["index.md", "README.md", "toc.yml"],
+			"dest": "."
+      }     
+    ],
+    "output": "_site",
+    "template": [
+      "default",
+      "modern"
+    ],
+    "globalMetadata": {
+      "_appName": "RStein.TOML API documentation",
+      "_appTitle": "RStein.TOML API documentation",
+      "_enableSearch": true,
+      "pdf": false
+    }
+  }
+}
