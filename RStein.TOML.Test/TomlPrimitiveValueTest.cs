@@ -720,27 +720,27 @@ internal class TomlPrimitiveValueTest
   }
 
 
-  [TestCase("str", TomlDataType.BasicString)]
-  [TestCase("str with \r\n new line", TomlDataType.BasicMlString)]
-  [TestCase("str with \r\n new line", TomlDataType.BasicMlString)]
-  [TestCase("str with \n new line", TomlDataType.BasicMlString)]
-  [TestCase("str with \n new line", TomlDataType.BasicMlString)]
-  [TestCase("str",TomlDataType.BasicString)]
-  [TestCase("str with \r\n new line", TomlDataType.BasicMlString)]
-  [TestCase("str with \n new line", TomlDataType.BasicMlString)]
-  [TestCase("str", TomlDataType.LiteralString)]
-  [TestCase("str with \r\n new line", TomlDataType.LiteralMlString)]
-  [TestCase("str with \r\n new line", TomlDataType.LiteralMlString)]
-  [TestCase("str with \n new line", TomlDataType.LiteralMlString)]
-  [TestCase("str with \n new line", TomlDataType.LiteralMlString)]
-  [TestCase(null!, TomlDataType.BasicString)]
-  [TestCase(null!, TomlDataType.BasicMlString)]
-  [TestCase(null!, TomlDataType.BasicString)]
-  [TestCase("", TomlDataType.BasicString)]
-  [TestCase("", TomlDataType.BasicMlString)]
-  [TestCase("", TomlDataType.BasicString)]
+  [TestCase("str", TomlStringValueType.BasicString)]
+  [TestCase("str with \r\n new line", TomlStringValueType.BasicMlString)]
+  [TestCase("str with \r\n new line", TomlStringValueType.BasicMlString)]
+  [TestCase("str with \n new line", TomlStringValueType.BasicMlString)]
+  [TestCase("str with \n new line", TomlStringValueType.BasicMlString)]
+  [TestCase("str",TomlStringValueType.BasicString)]
+  [TestCase("str with \r\n new line", TomlStringValueType.BasicMlString)]
+  [TestCase("str with \n new line", TomlStringValueType.BasicMlString)]
+  [TestCase("str", TomlStringValueType.LiteralString)]
+  [TestCase("str with \r\n new line", TomlStringValueType.LiteralMlString)]
+  [TestCase("str with \r\n new line", TomlStringValueType.LiteralMlString)]
+  [TestCase("str with \n new line", TomlStringValueType.LiteralMlString)]
+  [TestCase("str with \n new line", TomlStringValueType.LiteralMlString)]
+  [TestCase(null!, TomlStringValueType.BasicString)]
+  [TestCase(null!, TomlStringValueType.BasicMlString)]
+  [TestCase(null!, TomlStringValueType.BasicString)]
+  [TestCase("", TomlStringValueType.BasicString)]
+  [TestCase("", TomlStringValueType.BasicMlString)]
+  [TestCase("", TomlStringValueType.BasicString)]
   public void Ctor_When_String_Then_Returns_Expected_Type_And_StringValueType(string rawValue,
-                                                                              TomlDataType expectedStringType)
+                                                                              TomlStringValueType expectedStringType)
   {
     var stringValue = new TomlPrimitiveValue(rawValue, expectedStringType);
 
