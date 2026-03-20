@@ -745,7 +745,26 @@ internal class TomlPrimitiveValueTest
     var stringValue = new TomlPrimitiveValue(rawValue, expectedStringType);
 
     Assert.That(stringValue.Type, Is.EqualTo(TomlValueType.String));
-    Assert.That(stringValue.SubType, Is.EqualTo(expectedStringType));
+    Assert.That(stringValue.StringValueType, Is.EqualTo((TomlStringValueType)expectedStringType));
   }
 
+  [TestCase("1", TomlValueType.Integer)]
+  [TestCase("true", TomlValueType.Boolean)]
+  [TestCase("false", TomlValueType.Boolean)]
+  [TestCase("3.1415", TomlValueType.Float)]
+  [TestCase("-0.01", TomlValueType.Float)]
+  [TestCase("1e06", TomlValueType.Float)]
+  [TestCase("0.0", TomlValueType.Float)]
+  [TestCase("+0.0", TomlValueType.Float)]
+  [TestCase("-0.0", TomlValueType.Float)]
+  [TestCase("inf", TomlValueType.Float)]
+  [TestCase("+inf", TomlValueType.Float)]
+  [TestCase("1979-05-27 07:32:00Z", TomlValueType.DateTime)]
+  [TestCase("1979-05-27T07:32:00", TomlValueType.DateTime)]
+  public void StringValueType_When_Value_Is_Not_String_Then_Returns_Null(string rawValue, TomlValueType tomlValueType)
+  {
+    var stringValue = new TomlPrimitiveValue(rawValue, tomlValueType);
+
+    Assert.That(stringValue.StringValueType, Is.Null);
+  }
 }
