@@ -75,6 +75,16 @@ namespace RStein.TOML
     }
 
     /// <summary>
+    /// Initializes a new instance of the <see cref="TomlPrimitiveValue"/> class
+    /// with a string value and an explicit TOML string value type.
+    /// </summary>
+    /// <param name="value">The string value.</param>
+    /// <param name="tomlStringValueType">The TOML string value type that describes how the string is encoded.</param>
+    public TomlPrimitiveValue(string value, TomlStringValueType tomlStringValueType) : this(value, (TomlDataType)tomlStringValueType)
+    {
+    }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="TomlPrimitiveValue"/> class with a string value.
     /// </summary>
     /// <param name="value">The string value.</param>
@@ -333,6 +343,18 @@ namespace RStein.TOML
     {
       get;
     }
+
+    /// <summary>
+    /// Gets the TOML string encoding type of this value
+    /// (basic, multiline basic, literal, or multiline literal).
+    /// </summary>
+    /// <value>
+    /// The <see cref="TomlStringValueType"/> describing how the string is encoded,
+    /// or <see langword="null"/> if <see cref="Type"/> is not <see cref="TomlValueType.String"/>.
+    /// </value>
+    public TomlStringValueType? StringValueType => Type == TomlValueType.String
+      ? (TomlStringValueType?) SubType
+      : null;
 
     internal TomlDataType SubType
     {
