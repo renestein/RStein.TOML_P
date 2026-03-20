@@ -2,6 +2,42 @@
 
 namespace RStein.TOML
 {
+
+  /// <summary>
+  /// Specifies the string value type for a TOML string token.
+  /// </summary>
+  public enum TomlStringValueType
+  {
+    /// <summary>
+    /// No string type has been specified.
+    /// </summary>
+    Unspecified = 0,
+
+    /// <summary>
+    /// A basic string enclosed in double quotes (e.g. <c>"hello"</c>).
+    /// Supports escape sequences.
+    /// </summary>
+    BasicString = TomlDataType.BasicString,
+
+    /// <summary>
+    /// A multi-line basic string enclosed in triple double quotes (e.g. <c>"""hello"""</c>).
+    /// Supports escape sequences and spans multiple lines.
+    /// </summary>
+    BasicMlString = TomlDataType.BasicMlString,
+
+    /// <summary>
+    /// A literal string enclosed in single quotes (e.g. <c>'hello'</c>).
+    /// No escape sequences are processed.
+    /// </summary>
+    LiteralString = TomlDataType.LiteralString,
+
+    /// <summary>
+    /// A multi-line literal string enclosed in triple single quotes (e.g. <c>'''hello'''</c>).
+    /// No escape sequences are processed and spans multiple lines.
+    /// </summary>
+    LiteralMlString = TomlDataType.LiteralMlString
+  }
+
   [Flags]
   internal enum TomlDataType
   {
