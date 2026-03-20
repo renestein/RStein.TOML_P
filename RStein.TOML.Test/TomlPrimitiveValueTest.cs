@@ -716,6 +716,7 @@ internal class TomlPrimitiveValueTest
 
     Assert.That(stringValue.Type, Is.EqualTo(TomlValueType.String));
     Assert.That(stringValue.SubType, Is.EqualTo(expectedStringSubtype));
+    Assert.That(stringValue.StringValueType, Is.EqualTo((TomlStringValueType)expectedStringSubtype));
   }
 
 
