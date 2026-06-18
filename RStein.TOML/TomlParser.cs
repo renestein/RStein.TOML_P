@@ -28,6 +28,43 @@ namespace RStein.TOML
     private const string WINDOWS_NEW_LINE = "\r\n";
     private const string DEFAULT_SECONDS_IN_TIME = ":00";
 
+    public static TomlTable Parse(string toml,
+                                  TomlSettings? tomlSettings)
+    {
+      if (toml == null)
+      {
+        throw new ArgumentNullException(nameof(toml));
+      }
+
+      tomlSettings = tomlSettings ?? TomlSettings.Default;
+      var parserState = new ParserState<StringInputReader>(new StringInputReader(toml), tomlSettings)
+      {
+        CancellationToken = CancellationToken.None
+      };
+
+      return parseToml(parserState, useAsync: false).GetAwaiter().GetResult();
+    }
+
+    public static TomlTable Parse(Stream tomlStream,
+                                  TomlSettings tomlSettings)
+    {
+      if (tomlStream == null)
+      {
+        throw new ArgumentNullException(nameof(tomlStream));
+      }
+
+      tomlSettings = tomlSettings ?? TomlSettings.Default;
+      using (var reader = new StreamReader(tomlStream, Encoding.UTF8))
+      {
+        var parserState = new ParserState<TextInputReader>(new TextInputReader(reader), tomlSettings)
+        {
+          CancellationToken = CancellationToken.None
+        };
+
+        return parseToml(parserState, useAsync: false).GetAwaiter().GetResult();
+      }
+    }
+
     public static async ValueTask<TomlTable> ParseAsync(string toml,
                                                         TomlSettings? tomlSettings,
                                                         CancellationToken cancellationToken)
@@ -45,7 +82,7 @@ namespace RStein.TOML
         CancellationToken = cancellationToken
       };
 
-      return await parseToml(parserState).ConfigureAwait(false);
+      return await parseToml(parserState, useAsync: true).ConfigureAwait(false);
     }
 
     public static async ValueTask<TomlTable> ParseAsync(Stream tomlStream,
@@ -65,27 +102,27 @@ namespace RStein.TOML
           CancellationToken = cancellationToken
         };
 
-        return await parseToml(parserState).ConfigureAwait(false);
+        return await parseToml(parserState, useAsync: true).ConfigureAwait(false);
       }
     }
 
-    private static async ValueTask<TomlTable> parseToml<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask<TomlTable> parseToml<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       try
       {
-        await advance(parserState).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
         while (!parserState.Eof)
         {
           parserState.CancellationToken.ThrowIfCancellationRequested();
-          await skipWhitespacesAndNewLines(parserState).ConfigureAwait(false);
+          await skipWhitespacesAndNewLines(parserState, useAsync).ConfigureAwait(false);
           if (parserState.Eof)
           {
             continue;
 
           }
 
-          var expression = await parseExpression(parserState).ConfigureAwait(false);
+          var expression = await parseExpression(parserState, useAsync).ConfigureAwait(false);
 
           switch (expression)
           {
@@ -125,17 +162,17 @@ namespace RStein.TOML
       }
     }
 
-    private static async ValueTask<TomlExpression> parseExpression<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask<TomlExpression> parseExpression<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
-      await skipWhitespacesAndNewLines(parserState).ConfigureAwait(false);
+      await skipWhitespacesAndNewLines(parserState, useAsync).ConfigureAwait(false);
       throwIfEof(parserState);
       TomlExpression expression;
       switch (parserState.CurrentChar)
       {
         case '#':
           {
-            expression = await parseComment(parserState).ConfigureAwait(false);
+            expression = await parseComment(parserState, useAsync).ConfigureAwait(false);
             break;
           }
         case '[':
@@ -144,14 +181,14 @@ namespace RStein.TOML
             var parsingArrayOfTables = peekChar == '[';
             parserState.CurrentTomlTable = parserState.RootTomlTable;
 
-            expression = parsingArrayOfTables ? (TomlExpression)await parseArrayOfTables(parserState).ConfigureAwait(false)
-                                               : await parseStandardTable(parserState).ConfigureAwait(false);
+            expression = parsingArrayOfTables ? (TomlExpression)await parseArrayOfTables(parserState, useAsync).ConfigureAwait(false)
+                                               : await parseStandardTable(parserState, useAsync).ConfigureAwait(false);
 
             break;
           }
         default:
           {
-            expression = await parseKeyValueExpression(parserState).ConfigureAwait(false);
+            expression = await parseKeyValueExpression(parserState, useAsync).ConfigureAwait(false);
             break;
           }
       }
@@ -159,7 +196,7 @@ namespace RStein.TOML
       return expression;
     }
 
-    private static async ValueTask<TomlArray> parseArrayOfTables<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask<TomlArray> parseArrayOfTables<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       try
@@ -170,25 +207,25 @@ namespace RStein.TOML
           throwTomlSerializerException(parserState, INVALID_ARRAY_TABLES_DEFINITION_ERROR);
         }
 
-        await advance(parserState).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
         throwIfEof(parserState);
         if (parserState.CurrentChar != '[')
         {
           throwTomlSerializerException(parserState, INVALID_ARRAY_TABLES_DEFINITION_ERROR);
         }
 
-        await advance(parserState).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
         throwIfEof(parserState);
 
-        var (key, parentTable) = await parseKey(parserState).ConfigureAwait(false);
+        var (key, parentTable) = await parseKey(parserState, useAsync).ConfigureAwait(false);
         var lastKey = key.LastKeyPart;
-        await skipWhiteSpaces(parserState).ConfigureAwait(false);
+        await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
         if (parserState.CurrentChar != ']')
         {
           throwTomlSerializerException(parserState, INVALID_TABLE_DEFINITION_ERROR);
         }
 
-        await advance(parserState).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
         throwIfEof(parserState);
         if (parserState.CurrentChar != ']')
         {
@@ -200,8 +237,8 @@ namespace RStein.TOML
         Debug.Assert(peekChar != null);
         if (isWhiteSpace(peekChar.Value))
         {
-          await advance(parserState).ConfigureAwait(false);
-          await skipWhiteSpaces(parserState).ConfigureAwait(false);
+          await advance(parserState, useAsync).ConfigureAwait(false);
+          await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
           peekChar = parserState.CurrentChar;
         }
 
@@ -214,7 +251,7 @@ namespace RStein.TOML
 
           if (peekChar == '#')
           {
-            _ = await parseComment(parserState).ConfigureAwait(false);
+            _ = await parseComment(parserState, useAsync).ConfigureAwait(false);
           }
         }
 
@@ -247,7 +284,7 @@ namespace RStein.TOML
         parserState.CurrentTomlTable = tableItem;
         if (parserState.CurrentChar == ']')
         {
-          await advance(parserState).ConfigureAwait(false);
+          await advance(parserState, useAsync).ConfigureAwait(false);
         }
 
         return arrayToken;
@@ -258,13 +295,13 @@ namespace RStein.TOML
       }
     }
 
-    private static async ValueTask<TomlKeyValue> parseKeyValueExpression<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask<TomlKeyValue> parseKeyValueExpression<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       try
       {
         parserState.KeyParent = parserState.KeyParent == TomlTokenType.Undefined ? TomlTokenType.KeyValue : parserState.KeyParent;
-        var (key, table) = await parseKey(parserState).ConfigureAwait(false);
+        var (key, table) = await parseKey(parserState, useAsync).ConfigureAwait(false);
 
         if (key.IsDottedKey && table.HasTopLevelDefinition)
         {
@@ -277,7 +314,7 @@ namespace RStein.TOML
           throwTomlSerializerException(parserState, $"Key '{key.LastKeyPart.RawKey}' already exists. Redefinition is not allowed.");
         }
 
-        await skipWhiteSpaces(parserState).ConfigureAwait(false);
+        await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
         throwIfEof(parserState);
 
         if (parserState.CurrentChar != '=')
@@ -285,17 +322,17 @@ namespace RStein.TOML
           throwTomlSerializerException(parserState, $"Expected '=' in key-value definition. Found '{parserState.CurrentChar}'.");
         }
 
-        await advance(parserState).ConfigureAwait(false);
-        var value = await parseValue(parserState).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
+        var value = await parseValue(parserState, useAsync).ConfigureAwait(false);
         if (table.IsArrayOfTablesMember && key.IsDottedKey && value.TokenType == TomlTokenType.PrimitiveValue)
         {
           throwTomlSerializerException(parserState, $"Key '{key.LastKeyPart.RawKey} is an array of tables. Could not append to array of tables via dotted key.");
         }
-        await skipWhiteSpaces(parserState).ConfigureAwait(false);
+        await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
 
         if (parserState.CurrentChar == '#')
         {
-          _ = await parseComment(parserState).ConfigureAwait(false);
+          _ = await parseComment(parserState, useAsync).ConfigureAwait(false);
         }
 
         if (!isNewLineChar(parserState) && parserState.CurrentChar != ',' && parserState.CurrentChar != '}' && !parserState.Eof)
@@ -303,7 +340,7 @@ namespace RStein.TOML
           throwTomlSerializerException(parserState, $"Expected end of line, but found '{parserState.CurrentChar}'.");
         }
 
-        await skipWhiteSpaces(parserState).ConfigureAwait(false);
+        await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
         var newTomlKeyValue = new TomlKeyValue(key, value);
         return newTomlKeyValue;
       }
@@ -316,38 +353,38 @@ namespace RStein.TOML
       }
     }
 
-    private static async ValueTask<TomlValue> parseValue<TInputReader>(ParserState<TInputReader> parserState)
-        where TInputReader : struct, IInputReader 
+    private static async ValueTask<TomlValue> parseValue<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
+        where TInputReader : struct, IInputReader
     {
-      await skipWhiteSpaces(parserState).ConfigureAwait(false);
+      await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
       throwIfEof(parserState);
 
       switch (parserState.CurrentChar)
       {
         case '"':
           {
-            var (parsedString, tomlDataType) = await parseBasicStringOrBasicMlString(parserState).ConfigureAwait(false);
+            var (parsedString, tomlDataType) = await parseBasicStringOrBasicMlString(parserState, useAsync).ConfigureAwait(false);
             return new TomlPrimitiveValue(parsedString, TomlValueType.String, tomlDataType);
           }
         case '\'':
           {
-            var (parsedString, tomlDataType) = await parseLiteralStringOrMlLiteralString(parserState).ConfigureAwait(false);
+            var (parsedString, tomlDataType) = await parseLiteralStringOrMlLiteralString(parserState, useAsync).ConfigureAwait(false);
             return new TomlPrimitiveValue(parsedString, TomlValueType.String, tomlDataType);
           }
         case '[':
           {
-            var tomlArray = await parseArray(parserState).ConfigureAwait(false);
+            var tomlArray = await parseArray(parserState, useAsync).ConfigureAwait(false);
             return tomlArray;
           }
         case '{':
           {
-            var tomlInlineTable = await parseInlineTable(parserState).ConfigureAwait(false);
+            var tomlInlineTable = await parseInlineTable(parserState, useAsync).ConfigureAwait(false);
             tomlInlineTable.HasFromInlineTableDefinition = true;
             return tomlInlineTable;
           }
         case 't':
           {
-            if (await matchLiteralValue(parserState, TomlPrimitiveValue.TRUE_VALUE_LITERAL).ConfigureAwait(false))
+            if (await matchLiteralValue(parserState, TomlPrimitiveValue.TRUE_VALUE_LITERAL, useAsync).ConfigureAwait(false))
             {
               return new TomlPrimitiveValue(TomlPrimitiveValue.TRUE_VALUE_LITERAL, TomlValueType.Boolean);
             }
@@ -356,7 +393,7 @@ namespace RStein.TOML
             break;
           }
         case 'f':
-          if (await matchLiteralValue(parserState, TomlPrimitiveValue.FALSE_VALUE_LITERAL).ConfigureAwait(false))
+          if (await matchLiteralValue(parserState, TomlPrimitiveValue.FALSE_VALUE_LITERAL, useAsync).ConfigureAwait(false))
           {
             return new TomlPrimitiveValue(TomlPrimitiveValue.FALSE_VALUE_LITERAL, TomlValueType.Boolean);
           }
@@ -368,14 +405,14 @@ namespace RStein.TOML
       if (char.IsDigit(parserState.CurrentChar) || parserState.CurrentChar == '+' || parserState.CurrentChar == '-' ||
           parserState.CurrentChar == 'i' || parserState.CurrentChar == 'n')
       {
-        var (valueCandidateType, parsedValue, hasNumber) = await parseNumber(parserState).ConfigureAwait(false);
+        var (valueCandidateType, parsedValue, hasNumber) = await parseNumber(parserState, useAsync).ConfigureAwait(false);
         if (hasNumber)
         {
           return new TomlPrimitiveValue(parsedValue, valueCandidateType.ToTomlValueType(), valueCandidateType);
         }
 
         Debug.Assert((valueCandidateType & TomlDataType.AllDateTimeTypes) != 0);
-        var (subType, dateTimeValue) = await parseDateTime(parserState, parsedValue).ConfigureAwait(false);
+        var (subType, dateTimeValue) = await parseDateTime(parserState, parsedValue, useAsync).ConfigureAwait(false);
         Debug.Assert(subType != TomlDataType.Unspecified);
         return new TomlPrimitiveValue(dateTimeValue, TomlValueType.DateTime, subType);
       }
@@ -386,7 +423,8 @@ namespace RStein.TOML
     }
 
     private static async ValueTask<(TomlDataType subtype, string dateValue)> parseDateTime<TInputReader>(ParserState<TInputReader> parserState,
-                                                                                                         string firstDateOrTimePart)
+                                                                                                         string firstDateOrTimePart,
+                                                                                                         bool useAsync)
       where TInputReader : struct, IInputReader
     {
       try
@@ -397,8 +435,8 @@ namespace RStein.TOML
         if (parserState.CurrentChar == '-')
         {
           candidateTypes &= ~TomlDataType.LocalTime;
-          await parseFullDate(parserState, firstDateOrTimePart).ConfigureAwait(false);
-          await advance(parserState).ConfigureAwait(false);
+          await parseFullDate(parserState, firstDateOrTimePart, useAsync).ConfigureAwait(false);
+          await advance(parserState, useAsync).ConfigureAwait(false);
           if (parserState.Eof)
           {
             candidateTypes = TomlDataType.LocalDate;
@@ -415,7 +453,7 @@ namespace RStein.TOML
               candidateTypes &= ~TomlDataType.LocalDate;
             }
 
-            await advance(parserState).ConfigureAwait(false);
+            await advance(parserState, useAsync).ConfigureAwait(false);
             if (parserState.CurrentChar.Equals('#'))
             {
               if (mustHaveDateTime)
@@ -434,7 +472,7 @@ namespace RStein.TOML
             }
 
             throwIfEof(parserState);
-            await parsePartialTime(parserState).ConfigureAwait(false);
+            await parsePartialTime(parserState, useAsync).ConfigureAwait(false);
           }
           else
           {
@@ -442,7 +480,7 @@ namespace RStein.TOML
             return (candidateTypes, parserState.StringBuilder.ToString());
           }
 
-          await advance(parserState).ConfigureAwait(false);
+          await advance(parserState, useAsync).ConfigureAwait(false);
           if (parserState.Eof || (parserState.CurrentChar != 'Z' && parserState.CurrentChar != 'z' && parserState.CurrentChar != '+' && parserState.CurrentChar != '-'))
           {
             candidateTypes = TomlDataType.LocalDateTime;
@@ -450,15 +488,15 @@ namespace RStein.TOML
           }
 
           candidateTypes = TomlDataType.OffsetDateTime;
-          await parseTimeOffset(parserState).ConfigureAwait(false);
-          await advance(parserState).ConfigureAwait(false);
+          await parseTimeOffset(parserState, useAsync).ConfigureAwait(false);
+          await advance(parserState, useAsync).ConfigureAwait(false);
           return (candidateTypes, parserState.StringBuilder.ToString());
         }
         else if (parserState.CurrentChar == ':')
         {
           candidateTypes = TomlDataType.LocalTime;
-          await parsePartialTime(parserState, firstDateOrTimePart).ConfigureAwait(false);
-          await advance(parserState).ConfigureAwait(false);
+          await parsePartialTime(parserState, useAsync, firstDateOrTimePart).ConfigureAwait(false);
+          await advance(parserState, useAsync).ConfigureAwait(false);
           return (candidateTypes, parserState.StringBuilder.ToString());
         }
       }
@@ -471,7 +509,7 @@ namespace RStein.TOML
       throw new UnreachableException();
     }
 
-    private static async ValueTask parseTimeOffset<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask parseTimeOffset<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       if (parserState.CurrentChar == 'Z' || parserState.CurrentChar == 'z')
@@ -483,18 +521,18 @@ namespace RStein.TOML
       if (parserState.CurrentChar == '+' || parserState.CurrentChar == '-')
       {
         parserState.StringBuilder.Append(parserState.CurrentChar);
-        await advance(parserState).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
         throwIfEof(parserState);
-        await parseTimeHour(parserState).ConfigureAwait(false);
+        await parseTimeHour(parserState, useAsync).ConfigureAwait(false);
 
-        await advance(parserState).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
         throwIfEof(parserState);
         expectChar(parserState, ':', INVALID_TOML_VALUE_ERROR);
         parserState.StringBuilder.Append(parserState.CurrentChar);
 
-        await advance(parserState).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
         throwIfEof(parserState);
-        await parseTimeMinute(parserState).ConfigureAwait(false);
+        await parseTimeMinute(parserState, useAsync).ConfigureAwait(false);
         return;
       }
 
@@ -502,22 +540,23 @@ namespace RStein.TOML
     }
 
     private static async ValueTask parsePartialTime<TInputReader>(ParserState<TInputReader> parserState,
+                                                                  bool useAsync,
                                                                   string? firstDateOrTimePart = null)
       where TInputReader : struct, IInputReader
     {
 
-      await parseTimeHour(parserState, firstDateOrTimePart).ConfigureAwait(false);
+      await parseTimeHour(parserState, useAsync, firstDateOrTimePart).ConfigureAwait(false);
       if (firstDateOrTimePart == null)
       {
-        await advance(parserState).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
       }
 
       throwIfEof(parserState);
       expectChar(parserState, ':', INVALID_TOML_VALUE_ERROR);
       parserState.StringBuilder.Append(parserState.CurrentChar);
-      await advance(parserState).ConfigureAwait(false);
+      await advance(parserState, useAsync).ConfigureAwait(false);
       throwIfEof(parserState);
-      await parseTimeMinute(parserState).ConfigureAwait(false);
+      await parseTimeMinute(parserState, useAsync).ConfigureAwait(false);
 
       var peekChar = peek(parserState);
 
@@ -528,13 +567,13 @@ namespace RStein.TOML
         return;
       }
 
-      await advance(parserState).ConfigureAwait(false);
+      await advance(parserState, useAsync).ConfigureAwait(false);
       throwIfEof(parserState);
       expectChar(parserState, ':', INVALID_TOML_VALUE_ERROR);
       parserState.StringBuilder.Append(parserState.CurrentChar);
-      await advance(parserState).ConfigureAwait(false);
+      await advance(parserState, useAsync).ConfigureAwait(false);
       throwIfEof(parserState);
-      await parseTimeSeconds(parserState).ConfigureAwait(false);
+      await parseTimeSeconds(parserState, useAsync).ConfigureAwait(false);
 
       peekChar = peek(parserState);
       if (peekChar != '.')
@@ -542,26 +581,26 @@ namespace RStein.TOML
         return;
       }
 
-      await advance(parserState).ConfigureAwait(false);
-      await parseTimeSecFraction(parserState).ConfigureAwait(false);
+      await advance(parserState, useAsync).ConfigureAwait(false);
+      await parseTimeSecFraction(parserState, useAsync).ConfigureAwait(false);
     }
 
-    private static async ValueTask parseTimeSecFraction<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask parseTimeSecFraction<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       expectChar(parserState, '.', INVALID_TOML_VALUE_ERROR);
       parserState.StringBuilder.Append(parserState.CurrentChar);
-      await advance(parserState).ConfigureAwait(false);
+      await advance(parserState, useAsync).ConfigureAwait(false);
       throwIfEof(parserState);
       if (!char.IsDigit(parserState.CurrentChar))
       {
         throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
       }
 
-      await parseDigits(parserState).ConfigureAwait(false);
+      await parseDigits(parserState, useAsync).ConfigureAwait(false);
     }
 
-    private static async ValueTask parseDigits<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask parseDigits<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       Debug.Assert(char.IsDigit(parserState.CurrentChar));
@@ -575,12 +614,12 @@ namespace RStein.TOML
         isDigit = nextDigit != null && char.IsDigit(nextDigit.Value);
         if (isDigit)
         {
-          await advance(parserState).ConfigureAwait(false);
+          await advance(parserState, useAsync).ConfigureAwait(false);
         }
       } while (isDigit);
     }
 
-    private static async ValueTask<int> parseTimeSeconds<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask<int> parseTimeSeconds<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
 
@@ -591,7 +630,7 @@ namespace RStein.TOML
 
       var secondsC1 = parserState.CurrentChar;
       parserState.StringBuilder.Append(parserState.CurrentChar);
-      await advance(parserState).ConfigureAwait(false);
+      await advance(parserState, useAsync).ConfigureAwait(false);
       throwIfEof(parserState);
       var secondsC2 = parserState.CurrentChar;
       if (!char.IsDigit(parserState.CurrentChar) || !rawSecondsToIntSeconds(secondsC1, secondsC2, out var seconds))
@@ -611,7 +650,7 @@ namespace RStein.TOML
                                                                    seconds >= 0 &&
                                                                    seconds <= 59;
 
-    private static async ValueTask<int> parseTimeMinute<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask<int> parseTimeMinute<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       if (!char.IsDigit(parserState.CurrentChar) || parserState.CurrentChar - '0' > 5)
@@ -621,7 +660,7 @@ namespace RStein.TOML
 
       var minuteC1 = parserState.CurrentChar;
       parserState.StringBuilder.Append(parserState.CurrentChar);
-      await advance(parserState).ConfigureAwait(false);
+      await advance(parserState, useAsync).ConfigureAwait(false);
       throwIfEof(parserState);
       var minuteC2 = parserState.CurrentChar;
       if (!char.IsDigit(parserState.CurrentChar) || !rawMinuteToIntMinute(minuteC1, minuteC2, out var minute))
@@ -640,6 +679,7 @@ namespace RStein.TOML
                                              out int minute) => int.TryParse($"{minuteC1}{minuteC2}", out minute) && minute >= 0 && minute <= 59;
 
     private static async ValueTask<int> parseTimeHour<TInputReader>(ParserState<TInputReader> parserState,
+                                                                    bool useAsync,
                                                                     string? firstDateOrTimePart = null)
       where TInputReader : struct, IInputReader
     {
@@ -661,7 +701,7 @@ namespace RStein.TOML
       expectChar(parserState, '0', '1', '2', INVALID_TOML_VALUE_ERROR);
       var hourC1 = parserState.CurrentChar;
       parserState.StringBuilder.Append(parserState.CurrentChar);
-      await advance(parserState).ConfigureAwait(false);
+      await advance(parserState, useAsync).ConfigureAwait(false);
       throwIfEof(parserState);
       var hourC2 = parserState.CurrentChar;
       if (!char.IsDigit(parserState.CurrentChar) || !rawHourToIntHour(hourC1, hourC2, out var hour))
@@ -683,7 +723,8 @@ namespace RStein.TOML
                                          out int hour) => rawHourToIntHour($"{hourC1}{hourC2}", out hour);
 
     private static async ValueTask parseFullDate<TInputReader>(ParserState<TInputReader> parserState,
-                                                               string firstDatePart)
+                                                               string firstDatePart,
+                                                               bool useAsync)
       where TInputReader : struct, IInputReader
 
     {
@@ -691,21 +732,22 @@ namespace RStein.TOML
       var year = await parseYear(firstDatePart, parserState).ConfigureAwait(false);
       expectChar(parserState, '-', INVALID_TOML_VALUE_ERROR);
       parserState.StringBuilder.Append(parserState.CurrentChar);
-      await advance(parserState).ConfigureAwait(false);
+      await advance(parserState, useAsync).ConfigureAwait(false);
       throwIfEof(parserState);
-      var month = await parseMonth(parserState).ConfigureAwait(false);
-      await advance(parserState).ConfigureAwait(false);
+      var month = await parseMonth(parserState, useAsync).ConfigureAwait(false);
+      await advance(parserState, useAsync).ConfigureAwait(false);
       throwIfEof(parserState);
       expectChar(parserState, '-', INVALID_TOML_VALUE_ERROR);
       parserState.StringBuilder.Append(parserState.CurrentChar);
-      await advance(parserState).ConfigureAwait(false);
+      await advance(parserState, useAsync).ConfigureAwait(false);
       throwIfEof(parserState);
-      await parseMonthDay(parserState, year, month).ConfigureAwait(false);
+      await parseMonthDay(parserState, year, month, useAsync).ConfigureAwait(false);
     }
 
     private static async ValueTask<int> parseMonthDay<TInputReader>(ParserState<TInputReader> parserState,
                                                                     int year,
-                                                                    int month)
+                                                                    int month,
+                                                                    bool useAsync)
       where TInputReader : struct, IInputReader
     {
 
@@ -715,7 +757,7 @@ namespace RStein.TOML
       }
       var dayC1 = parserState.CurrentChar;
       parserState.StringBuilder.Append(parserState.CurrentChar);
-      await advance(parserState).ConfigureAwait(false);
+      await advance(parserState, useAsync).ConfigureAwait(false);
       throwIfEof(parserState);
       var dayC2 = parserState.CurrentChar;
       if (!char.IsDigit(parserState.CurrentChar) || !rawMonthDayToMonthDayInt(parserState, dayC1, dayC2, year, month, out var day))
@@ -750,7 +792,7 @@ namespace RStein.TOML
       return true;
     }
 
-    private static async ValueTask<int> parseMonth<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask<int> parseMonth<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       if (!char.IsDigit(parserState.CurrentChar))
@@ -761,7 +803,7 @@ namespace RStein.TOML
       expectChar(parserState, '0', '1', INVALID_TOML_VALUE_ERROR);
       var monthC1 = parserState.CurrentChar;
       parserState.StringBuilder.Append(parserState.CurrentChar);
-      await advance(parserState).ConfigureAwait(false);
+      await advance(parserState, useAsync).ConfigureAwait(false);
       throwIfEof(parserState);
       var monthC2 = parserState.CurrentChar;
       if (!char.IsDigit(parserState.CurrentChar) || !rawMonthToIntMonth(monthC1, monthC2, out var month))
@@ -796,7 +838,7 @@ namespace RStein.TOML
       return new ValueTask<int>(year);
     }
 
-    private static async ValueTask<TomlInlineTable> parseInlineTable<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask<TomlInlineTable> parseInlineTable<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       var oldTable = parserState.CurrentTomlTable;
@@ -812,8 +854,8 @@ namespace RStein.TOML
         var newInlineTable = new TomlInlineTable(new TomlKey(TomlTable.ANONYMOUS_TABLE_NAME, TomlKeyType.SimpleQuotedBasicString));
         while (parserState.CurrentChar != '}')
         {
-          await advance(parserState).ConfigureAwait(false);
-          await skipWhiteSpaces(parserState).ConfigureAwait(false);
+          await advance(parserState, useAsync).ConfigureAwait(false);
+          await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
           throwIfEof(parserState);
 
           if (parserState.CurrentChar == '}')
@@ -841,7 +883,7 @@ namespace RStein.TOML
             }
             else
             {
-              await parseWsCommentNewLine(parserState).ConfigureAwait(false);
+              await parseWsCommentNewLine(parserState, useAsync).ConfigureAwait(false);
               if (parserState.CurrentChar == '}')
               {
                 continue;
@@ -850,7 +892,7 @@ namespace RStein.TOML
           }
 
           parserState.CurrentTomlTable = newInlineTable;
-          var keyValueExpression = await parseKeyValueExpression(parserState).ConfigureAwait(false);
+          var keyValueExpression = await parseKeyValueExpression(parserState, useAsync).ConfigureAwait(false);
           if (keyValueExpression.Key.IsDottedKey)
           {
             parserState.CurrentTomlTable.AddInternal(keyValueExpression.Key.LastKeyPart, keyValueExpression.Value);
@@ -862,17 +904,17 @@ namespace RStein.TOML
 
           if (parserState.TomlSettings.TomlVersion == TomlVersion.Toml10)
           {
-            await skipWhiteSpaces(parserState).ConfigureAwait(false);
+            await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
           }
           else
           {
-            await parseWsCommentNewLine(parserState).ConfigureAwait(false);
+            await parseWsCommentNewLine(parserState, useAsync).ConfigureAwait(false);
           }
 
           expectChar(parserState, ',', '}', INVALID_TOML_ARRAY_DEFINITION_ERROR);
         }
 
-        await advance(parserState).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
         return newInlineTable;
       }
       finally
@@ -882,7 +924,7 @@ namespace RStein.TOML
       }
     }
 
-    private static async ValueTask<TomlArray> parseArray<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask<TomlArray> parseArray<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       if (parserState.CurrentChar != '[')
@@ -894,43 +936,43 @@ namespace RStein.TOML
 
       while (parserState.CurrentChar != ']')
       {
-        if (!await advance(parserState).ConfigureAwait(false))
+        if (!await advance(parserState, useAsync).ConfigureAwait(false))
         {
           throwTomlSerializerException(parserState, INVALID_TOML_ARRAY_DEFINITION_ERROR);
         }
 
-        await parseWsCommentNewLine(parserState).ConfigureAwait(false);
+        await parseWsCommentNewLine(parserState, useAsync).ConfigureAwait(false);
 
         if (parserState.CurrentChar == ']')
         {
           continue;
         }
 
-        var arrayValue = await parseValue(parserState).ConfigureAwait(false);
+        var arrayValue = await parseValue(parserState, useAsync).ConfigureAwait(false);
         tomlArray.Add(arrayValue);
-        await parseWsCommentNewLine(parserState).ConfigureAwait(false);
+        await parseWsCommentNewLine(parserState, useAsync).ConfigureAwait(false);
         expectChar(parserState, ',', ']', INVALID_TOML_ARRAY_DEFINITION_ERROR);
       }
 
-      await advance(parserState).ConfigureAwait(false);
+      await advance(parserState, useAsync).ConfigureAwait(false);
       return tomlArray;
     }
 
-    private static async ValueTask parseWsCommentNewLine<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask parseWsCommentNewLine<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
-      await skipWhitespacesAndNewLines(parserState).ConfigureAwait(false);
+      await skipWhitespacesAndNewLines(parserState, useAsync).ConfigureAwait(false);
       throwIfEof(parserState);
       while (parserState.CurrentChar == '#')
       {
-        _ = await parseComment(parserState).ConfigureAwait(false);
-        await advance(parserState).ConfigureAwait(false);
+        _ = await parseComment(parserState, useAsync).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
         throwIfEof(parserState);
-        await skipWhitespacesAndNewLines(parserState).ConfigureAwait(false);
+        await skipWhitespacesAndNewLines(parserState, useAsync).ConfigureAwait(false);
       }
     }
 
-    private static async ValueTask<(TomlDataType valueCandidateTypes, string parsedValue, bool hasNumber)> parseNumber<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask<(TomlDataType valueCandidateTypes, string parsedValue, bool hasNumber)> parseNumber<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       var builder = parserState.StringBuilder;
@@ -942,7 +984,7 @@ namespace RStein.TOML
         {
           valueCandidateTypes &= ~TomlDataType.IntegerHex | ~TomlDataType.IntegerOct | TomlDataType.IntegerBin | ~TomlDataType.AllDateTimeTypes;
           builder.Append(parserState.CurrentChar);
-          await advance(parserState).ConfigureAwait(false);
+          await advance(parserState, useAsync).ConfigureAwait(false);
           throwIfEof(parserState);
         }
 
@@ -983,7 +1025,7 @@ namespace RStein.TOML
             }
 
             valueCandidateTypes = TomlDataType.Float;
-            await parseSpecialFloatInf(parserState).ConfigureAwait(false);
+            await parseSpecialFloatInf(parserState, useAsync).ConfigureAwait(false);
             return (valueCandidateTypes, builder.ToString(), hasNumber: true);
           }
 
@@ -995,7 +1037,7 @@ namespace RStein.TOML
             }
 
             valueCandidateTypes = TomlDataType.Float;
-            await parseSpecialFloatNan(parserState).ConfigureAwait(false);
+            await parseSpecialFloatNan(parserState, useAsync).ConfigureAwait(false);
             return (valueCandidateTypes, builder.ToString(), hasNumber: true);
           }
 
@@ -1021,8 +1063,8 @@ namespace RStein.TOML
               }
 
               builder.Append(parserState.CurrentChar);
-              await advance(parserState).ConfigureAwait(false);
-              await parseHexNumber(parserState).ConfigureAwait(false);
+              await advance(parserState, useAsync).ConfigureAwait(false);
+              await parseHexNumber(parserState, useAsync).ConfigureAwait(false);
               return (valueCandidateTypes, builder.ToString(), hasNumber: true);
             }
             else if (parserState.CurrentChar == 'o')
@@ -1045,8 +1087,8 @@ namespace RStein.TOML
               }
 
               builder.Append(parserState.CurrentChar);
-              await advance(parserState).ConfigureAwait(false);
-              await parseOctInt(parserState).ConfigureAwait(false);
+              await advance(parserState, useAsync).ConfigureAwait(false);
+              await parseOctInt(parserState, useAsync).ConfigureAwait(false);
               return (valueCandidateTypes, builder.ToString(), hasNumber: true);
             }
             else if (parserState.CurrentChar == 'b')
@@ -1069,15 +1111,15 @@ namespace RStein.TOML
               }
 
               builder.Append(parserState.CurrentChar);
-              await advance(parserState).ConfigureAwait(false);
-              await parseBinInt(parserState).ConfigureAwait(false);
+              await advance(parserState, useAsync).ConfigureAwait(false);
+              await parseBinInt(parserState, useAsync).ConfigureAwait(false);
               return (valueCandidateTypes, builder.ToString(), hasNumber: true);
             }
             else
             {
               var canBeIntDecOrFloat = (valueCandidateTypes & (TomlDataType.IntegerDec | valueCandidateTypes | TomlDataType.Float)) != 0;
               var canBeDate = (valueCandidateTypes & TomlDataType.AllDateTimeTypes) != 0;
-              await parseUnsignedDecInt(parserState).ConfigureAwait(false);
+              await parseUnsignedDecInt(parserState, useAsync).ConfigureAwait(false);
               if (canBeIntDecOrFloat && parserState.CurrentChar == 'e' || parserState.CurrentChar == 'E')
               {
                 valueCandidateTypes = TomlDataType.Float;
@@ -1087,7 +1129,7 @@ namespace RStein.TOML
                   throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
                 }
 
-                await parseFloatExponent(parserState).ConfigureAwait(false);
+                await parseFloatExponent(parserState, useAsync).ConfigureAwait(false);
                 return (valueCandidateTypes, builder.ToString(), hasNumber: true);
               }
               else if (canBeIntDecOrFloat && parserState.CurrentChar == '.')
@@ -1099,7 +1141,7 @@ namespace RStein.TOML
                   throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
                 }
 
-                await parseFloatFraction(parserState).ConfigureAwait(false);
+                await parseFloatFraction(parserState, useAsync).ConfigureAwait(false);
                 return (valueCandidateTypes, builder.ToString(), hasNumber: true);
               }
               else if (canBeDate && (parserState.CurrentChar == '-' || parserState.CurrentChar == ':'))
@@ -1129,7 +1171,7 @@ namespace RStein.TOML
             builder.Append(parserState.CurrentChar);
           }
 
-          await advance(parserState).ConfigureAwait(false);
+          await advance(parserState, useAsync).ConfigureAwait(false);
         }
       }
       finally
@@ -1147,10 +1189,10 @@ namespace RStein.TOML
 
     private static string normalizeZeroNumber(string number) => number.Length == 2 && number[1] == '0' && (number[0] == '+' || number[0] == '-') ? "0" : number;
 
-    private static async ValueTask parseSpecialFloatNan<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask parseSpecialFloatNan<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
-      if (!await matchLiteralValue(parserState, TomlPrimitiveValue.SPECIAL_FLOAT_NAN_LITERAL).ConfigureAwait(false))
+      if (!await matchLiteralValue(parserState, TomlPrimitiveValue.SPECIAL_FLOAT_NAN_LITERAL, useAsync).ConfigureAwait(false))
       {
         throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
       }
@@ -1158,10 +1200,10 @@ namespace RStein.TOML
       parserState.StringBuilder.Append(TomlPrimitiveValue.SPECIAL_FLOAT_NAN_LITERAL);
     }
 
-    private static async ValueTask parseSpecialFloatInf<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask parseSpecialFloatInf<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
-      if (!await matchLiteralValue(parserState, TomlPrimitiveValue.SPECIAL_FLOAT_INF_LITERAL).ConfigureAwait(false))
+      if (!await matchLiteralValue(parserState, TomlPrimitiveValue.SPECIAL_FLOAT_INF_LITERAL, useAsync).ConfigureAwait(false))
       {
         throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
       }
@@ -1169,13 +1211,13 @@ namespace RStein.TOML
       parserState.StringBuilder.Append(TomlPrimitiveValue.SPECIAL_FLOAT_INF_LITERAL);
     }
 
-    private static async ValueTask parseFloatFraction<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask parseFloatFraction<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       Debug.Assert(parserState.CurrentChar == '.');
       var builder = parserState.StringBuilder;
       builder.Append(parserState.CurrentChar);
-      await advance(parserState).ConfigureAwait(false);
+      await advance(parserState, useAsync).ConfigureAwait(false);
       throwIfEof(parserState);
 
       if (!char.IsDigit(parserState.CurrentChar))
@@ -1183,25 +1225,25 @@ namespace RStein.TOML
         throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
       }
 
-      await parseUnsignedDecInt(parserState).ConfigureAwait(false);
+      await parseUnsignedDecInt(parserState, useAsync).ConfigureAwait(false);
       if (parserState.CurrentChar == 'e' || parserState.CurrentChar == 'E')
       {
-        await parseFloatExponent(parserState).ConfigureAwait(false);
+        await parseFloatExponent(parserState, useAsync).ConfigureAwait(false);
       }
     }
 
-    private static async ValueTask parseFloatExponent<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask parseFloatExponent<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       Debug.Assert(parserState.CurrentChar == 'e' || parserState.CurrentChar == 'E');
       var builder = parserState.StringBuilder;
       builder.Append(parserState.CurrentChar);
-      await advance(parserState).ConfigureAwait(false);
+      await advance(parserState, useAsync).ConfigureAwait(false);
       throwIfEof(parserState);
       if (parserState.CurrentChar == '+' || parserState.CurrentChar == '-')
       {
         builder.Append(parserState.CurrentChar);
-        await advance(parserState).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
       }
 
       if (!char.IsDigit(parserState.CurrentChar))
@@ -1209,11 +1251,11 @@ namespace RStein.TOML
         throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
       }
 
-      await parseUnsignedDecInt(parserState).ConfigureAwait(false);
+      await parseUnsignedDecInt(parserState, useAsync).ConfigureAwait(false);
     }
 
-    private static async ValueTask parseBinInt<TInputReader>(ParserState<TInputReader> parserState)
-      where TInputReader : struct, IInputReader 
+    private static async ValueTask parseBinInt<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
+      where TInputReader : struct, IInputReader
     {
       var builder = parserState.StringBuilder;
       while (!parserState.Eof && (isBinaryDigit(parserState.CurrentChar) || parserState.CurrentChar == '_'))
@@ -1229,13 +1271,13 @@ namespace RStein.TOML
           throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
         }
 
-        await advance(parserState).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
       }
     }
 
     private static bool isBinaryDigit(char ch) => ch == '0' || ch == '1';
 
-    private static async ValueTask parseOctInt<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask parseOctInt<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       var builder = parserState.StringBuilder;
@@ -1251,7 +1293,7 @@ namespace RStein.TOML
         {
           throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
         }
-        await advance(parserState).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
       }
     }
 
@@ -1259,7 +1301,7 @@ namespace RStein.TOML
 
     private static bool isHexDigit(char ch) => char.IsDigit(ch) || (ch >= 'A' && ch <= 'F') || ((ch >= 'a' && ch <= 'f'));
 
-    private static async ValueTask parseHexNumber<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask parseHexNumber<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       var builder = parserState.StringBuilder;
@@ -1277,11 +1319,11 @@ namespace RStein.TOML
           throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
         }
 
-        await advance(parserState).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
       }
     }
 
-    private static async ValueTask parseUnsignedDecInt<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask parseUnsignedDecInt<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       var builder = parserState.StringBuilder;
@@ -1298,7 +1340,7 @@ namespace RStein.TOML
         {
           throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
         }
-        await advance(parserState).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
       }
     }
 
@@ -1316,14 +1358,15 @@ namespace RStein.TOML
     }
 
     private static async ValueTask<bool> matchLiteralValue<TInputReader>(ParserState<TInputReader> parserState,
-                                                                         string literal)
+                                                                         string literal,
+                                                                         bool useAsync)
       where TInputReader : struct, IInputReader
     {
       foreach (var l in literal)
       {
         if (parserState.CurrentChar == l)
         {
-          await advance(parserState).ConfigureAwait(false);
+          await advance(parserState, useAsync).ConfigureAwait(false);
           continue;
         }
 
@@ -1333,29 +1376,29 @@ namespace RStein.TOML
       return true;
     }
 
-    private static async ValueTask<(string parsedString, TomlDataType tomlDataType)> parseLiteralStringOrMlLiteralString<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask<(string parsedString, TomlDataType tomlDataType)> parseLiteralStringOrMlLiteralString<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       Debug.Assert(parserState.CurrentChar == '\'');
 
       if (peek(parserState) != '\'')
       {
-        return (await parseLiteralString(parserState).ConfigureAwait(false), TomlDataType.LiteralString);
+        return (await parseLiteralString(parserState, useAsync).ConfigureAwait(false), TomlDataType.LiteralString);
       }
 
-      await advance(parserState).ConfigureAwait(false);
+      await advance(parserState, useAsync).ConfigureAwait(false);
 
       if (peek(parserState) != '\'')
       {
-        await advance(parserState).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
         return (String.Empty, TomlDataType.LiteralString);
       }
 
-      await advance(parserState).ConfigureAwait(false);
-      return (await parseLiteralMlString(parserState).ConfigureAwait(false), TomlDataType.LiteralMlString);
+      await advance(parserState, useAsync).ConfigureAwait(false);
+      return (await parseLiteralMlString(parserState, useAsync).ConfigureAwait(false), TomlDataType.LiteralMlString);
     }
 
-    private static async ValueTask<string> parseLiteralMlString<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask<string> parseLiteralMlString<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       var literalMlBuilder = parserState.StringBuilder;
@@ -1364,31 +1407,31 @@ namespace RStein.TOML
       try
       {
         //parserState.ParsingString = true;
-        await advance(parserState).ConfigureAwait(false);
-        await skipNewLine(parserState).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
+        await skipNewLine(parserState, useAsync).ConfigureAwait(false);
         while (true)
         {
           throwIfEof(parserState);
           if (isMllChar(parserState.CurrentChar))
           {
             literalMlBuilder.Append(parserState.CurrentChar);
-            await advance(parserState).ConfigureAwait(false);
+            await advance(parserState, useAsync).ConfigureAwait(false);
           }
           else if (isNewLineChar(parserState))
           {
             literalMlBuilder.Append(WINDOWS_NEW_LINE);
-            await skipNewLine(parserState).ConfigureAwait(false);
+            await skipNewLine(parserState, useAsync).ConfigureAwait(false);
           }
           else if (parserState.CurrentChar == '\'')
           {
             var isStringEnd = false;
             var toWriteQuotes = 1;
             var totalQuotes = 1;
-            await advance(parserState).ConfigureAwait(false);
+            await advance(parserState, useAsync).ConfigureAwait(false);
             throwIfEof(parserState);
             if (parserState.CurrentChar == '\'')
             {
-              await advance(parserState).ConfigureAwait(false);
+              await advance(parserState, useAsync).ConfigureAwait(false);
               throwIfEof(parserState);
               ++toWriteQuotes;
               ++totalQuotes;
@@ -1398,7 +1441,7 @@ namespace RStein.TOML
                 isStringEnd = true;
                 toWriteQuotes = 0;
                 ++totalQuotes;
-                while (await advance(parserState).ConfigureAwait(false) && parserState.CurrentChar == '\'')
+                while (await advance(parserState, useAsync).ConfigureAwait(false) && parserState.CurrentChar == '\'')
                 {
                   ++totalQuotes;
                   ++toWriteQuotes;
@@ -1437,28 +1480,28 @@ namespace RStein.TOML
 
     private static bool isMllChar(char ch) => isLiteralChar(ch);
 
-    private static async ValueTask<(string parserString, TomlDataType tomlDataType)> parseBasicStringOrBasicMlString<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask<(string parserString, TomlDataType tomlDataType)> parseBasicStringOrBasicMlString<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       Debug.Assert(parserState.CurrentChar == '"');
       if (peek(parserState) != '"')
       {
-        return (await parseBasicString(parserState).ConfigureAwait(false), TomlDataType.BasicString);
+        return (await parseBasicString(parserState, useAsync).ConfigureAwait(false), TomlDataType.BasicString);
       }
 
-      await advance(parserState).ConfigureAwait(false);
+      await advance(parserState, useAsync).ConfigureAwait(false);
       if (peek(parserState) != '"')
       {
-        await advance(parserState).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
         return (String.Empty, TomlDataType.BasicString);
       }
 
-      await advance(parserState).ConfigureAwait(false);
+      await advance(parserState, useAsync).ConfigureAwait(false);
 
-      return (await parseBasicMlString(parserState).ConfigureAwait(false), TomlDataType.BasicMlString);
+      return (await parseBasicMlString(parserState, useAsync).ConfigureAwait(false), TomlDataType.BasicMlString);
     }
 
-    private static async ValueTask<string> parseBasicMlString<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask<string> parseBasicMlString<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       var basicMlBuilder = parserState.StringBuilder;
@@ -1467,15 +1510,15 @@ namespace RStein.TOML
       try
       {
         parserState.ParsingString = true;
-        await advance(parserState).ConfigureAwait(false);
-        await skipNewLine(parserState).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
+        await skipNewLine(parserState, useAsync).ConfigureAwait(false);
         while (true)
         {
           throwIfEof(parserState);
           if (isMlbUnescapedChar(parserState.CurrentChar))
           {
             basicMlBuilder.Append(parserState.CurrentChar);
-            await advance(parserState).ConfigureAwait(false);
+            await advance(parserState, useAsync).ConfigureAwait(false);
           }
           else if (isEscapedChar(parserState.CurrentChar))
           {
@@ -1487,18 +1530,18 @@ namespace RStein.TOML
 
             if (isWhiteSpace(peekChar.Value) || isNewLineChar(peekChar.Value))
             {
-              await parseMlbEscapedNl(parserState).ConfigureAwait(false);
+              await parseMlbEscapedNl(parserState, useAsync).ConfigureAwait(false);
             }
             else
             {
-              basicMlBuilder.Append(await parseBasicEscapedChar(parserState).ConfigureAwait(false));
-              await advance(parserState).ConfigureAwait(false);
+              basicMlBuilder.Append(await parseBasicEscapedChar(parserState, useAsync).ConfigureAwait(false));
+              await advance(parserState, useAsync).ConfigureAwait(false);
             }
           }
           else if (isNewLineChar(parserState))
           {
             basicMlBuilder.Append(WINDOWS_NEW_LINE);
-            await skipNewLine(parserState).ConfigureAwait(false);
+            await skipNewLine(parserState, useAsync).ConfigureAwait(false);
           }
           else if (parserState.CurrentChar == '"')
           {
@@ -1513,21 +1556,21 @@ namespace RStein.TOML
                 case 1:
                   ++toWriteQuotes;
                   ++foundQuotes;
-                  await advance(parserState).ConfigureAwait(false);
+                  await advance(parserState, useAsync).ConfigureAwait(false);
                   throwIfEof(parserState);
                   break;
                 case 2:
                   toWriteQuotes = 0;
                   ++foundQuotes;
                   isStringEnd = true;
-                  await advance(parserState).ConfigureAwait(false);
+                  await advance(parserState, useAsync).ConfigureAwait(false);
                   break;
                 case 3:
                 case 4:
 
                   ++foundQuotes;
                   ++toWriteQuotes;
-                  await advance(parserState).ConfigureAwait(false);
+                  await advance(parserState, useAsync).ConfigureAwait(false);
                   break;
                 default:
                   {
@@ -1558,21 +1601,21 @@ namespace RStein.TOML
 
     private static bool isNewLineChar(char ch) => ch == '\n' || ch == '\r';
 
-    private static async ValueTask parseMlbEscapedNl<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask parseMlbEscapedNl<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       Debug.Assert(isEscapedChar(parserState.CurrentChar));
       Debug.Assert(isWhiteSpace(peek(parserState)!.Value) || isNewLineChar(peek(parserState)!.Value));
 
       var foundEol = false;
-      await advance(parserState).ConfigureAwait(false);
+      await advance(parserState, useAsync).ConfigureAwait(false);
       while (true)
       {
         throwIfEof(parserState);
         if (isNewLineChar(parserState))
         {
           foundEol = true;
-          await skipNewLine(parserState).ConfigureAwait(false);
+          await skipNewLine(parserState, useAsync).ConfigureAwait(false);
         }
         else if (!isWhiteSpace(parserState.CurrentChar))
         {
@@ -1584,7 +1627,7 @@ namespace RStein.TOML
         }
         else
         {
-          await advance(parserState).ConfigureAwait(false);
+          await advance(parserState, useAsync).ConfigureAwait(false);
         }
 
       }
@@ -1592,13 +1635,13 @@ namespace RStein.TOML
 
     private static bool isMlbUnescapedChar(char ch) => isBasicUnescapedChar(ch);
 
-    private static async ValueTask<(TomlKey key, TomlTable CurrentTomlTable)> parseKey<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask<(TomlKey key, TomlTable CurrentTomlTable)> parseKey<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       Debug.Assert(parserState.KeyParent != TomlTokenType.Undefined);
       TomlKey? tomlKey = null;
       TomlTable? lastParsedTable = null;
-      await skipWhiteSpaces(parserState).ConfigureAwait(false);
+      await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
       if (parserState.CurrentChar == '.')
       {
         throwTomlSerializerException(parserState, "The key must not start with dot ('.') char.");
@@ -1659,18 +1702,18 @@ namespace RStein.TOML
 
         if (parserState.CurrentChar == '.')
         {
-          await advance(parserState).ConfigureAwait(false);
+          await advance(parserState, useAsync).ConfigureAwait(false);
           parserState.ParsingDottedKey = tomlKey != null && tomlKey.IsDottedKey;
         }
 
-        await skipWhiteSpaces(parserState).ConfigureAwait(false);
+        await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
         if (!parserState.ParsingDottedKey)
         {
-          await skipNewLine(parserState).ConfigureAwait(false);
+          await skipNewLine(parserState, useAsync).ConfigureAwait(false);
         }
         else
         {
-          await skipWhiteSpaces(parserState).ConfigureAwait(false);
+          await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
         }
 
         throwIfEof(parserState);
@@ -1678,14 +1721,14 @@ namespace RStein.TOML
         switch (parserState.CurrentChar)
         {
           case '\"':
-            newKeyPart = new TomlKey(await parseQuotedKey(parserState).ConfigureAwait(false), TomlKeyType.SimpleQuotedBasicString);
+            newKeyPart = new TomlKey(await parseQuotedKey(parserState, useAsync).ConfigureAwait(false), TomlKeyType.SimpleQuotedBasicString);
             break;
           case '\'':
-            newKeyPart = new TomlKey(await parseQuotedKey(parserState).ConfigureAwait(false), TomlKeyType.SimpleQuotedLiteralString);
+            newKeyPart = new TomlKey(await parseQuotedKey(parserState, useAsync).ConfigureAwait(false), TomlKeyType.SimpleQuotedLiteralString);
             break;
           default:
           {
-            newKeyPart = new TomlKey(await parseUnquotedKey(parserState).ConfigureAwait(false), TomlKeyType.SimpleUnquoted);
+            newKeyPart = new TomlKey(await parseUnquotedKey(parserState, useAsync).ConfigureAwait(false), TomlKeyType.SimpleUnquoted);
             break;
           }
         }
@@ -1698,17 +1741,17 @@ namespace RStein.TOML
         {
           tomlKey.LastKeyPart.NextKeyPart = newKeyPart;
         }
-        await skipWhiteSpaces(parserState).ConfigureAwait(false);
+        await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
       }
 
       Debug.Assert(tomlKey != null);
       return (tomlKey, parserState.CurrentTomlTable);
     }
 
-    private static async ValueTask<string> parseUnquotedKey<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask<string> parseUnquotedKey<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
-      await skipWhiteSpaces(parserState).ConfigureAwait(false);
+      await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
       throwIfEof(parserState);
       var keyBuilder = parserState.StringBuilder;
       Debug.Assert(keyBuilder.Length == 0);
@@ -1721,7 +1764,7 @@ namespace RStein.TOML
           if (isUnquotedKeyChar(parserState.CurrentChar))
           {
             keyBuilder.Append(parserState.CurrentChar);
-            await advance(parserState).ConfigureAwait(false);
+            await advance(parserState, useAsync).ConfigureAwait(false);
           }
           else if (parserState.CurrentChar == '=')
           {
@@ -1751,7 +1794,7 @@ namespace RStein.TOML
           }
           else if (isWhiteSpace(parserState.CurrentChar))
           {
-            await skipWhiteSpaces(parserState).ConfigureAwait(false);
+            await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
             if (parserState.Eof)
             {
               throwTomlSerializerException(parserState, "Unterminated key.");
@@ -1821,21 +1864,21 @@ namespace RStein.TOML
     }
 
     private static bool isUnquotedKeyChar(char ch) => ch.IsAsciiLetterOrDigit() || ch == '-' || ch == '_';
-    private static ValueTask<string> parseQuotedKey<TInputReader>(ParserState<TInputReader> parserState)
+    private static ValueTask<string> parseQuotedKey<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       switch (parserState.CurrentChar)
       {
         case '\"':
-          return parseBasicString(parserState);
+          return parseBasicString(parserState, useAsync);
         case '\'':
-          return parseLiteralString(parserState);
+          return parseLiteralString(parserState, useAsync);
         default:
           throw new TomlSerializerException($"Unexpected char{(int)parserState.CurrentChar:X}");
       }
     }
 
-    private static async ValueTask<string> parseLiteralString<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask<string> parseLiteralString<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       Debug.Assert(parserState.CurrentChar == '\'');
@@ -1846,7 +1889,7 @@ namespace RStein.TOML
 
         do
         {
-          await advance(parserState).ConfigureAwait(false);
+          await advance(parserState, useAsync).ConfigureAwait(false);
           if (parserState.Eof)
           {
             throwTomlSerializerException(parserState, "Unterminated literal string.");
@@ -1854,7 +1897,7 @@ namespace RStein.TOML
 
           if (parserState.CurrentChar == '\'')
           {
-            await advance(parserState).ConfigureAwait(false);
+            await advance(parserState, useAsync).ConfigureAwait(false);
             return literalStringBuilder.ToString();
           }
 
@@ -1879,7 +1922,7 @@ namespace RStein.TOML
 
     private static bool isLiteralChar(char ch) => ch == 0x09 || (ch >= 0x20 && ch <= 0x26) || (ch >= 0x28 && ch <= 0x7E) || ch.IsNonAsciiChar();
 
-    private static async ValueTask<string> parseBasicString<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask<string> parseBasicString<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       Debug.Assert(parserState.CurrentChar == '"');
@@ -1891,7 +1934,7 @@ namespace RStein.TOML
 
         do
         {
-          await advance(parserState).ConfigureAwait(false);
+          await advance(parserState, useAsync).ConfigureAwait(false);
           if (parserState.Eof)
           {
             throwTomlSerializerException(parserState, "Unterminated basic string.");
@@ -1899,7 +1942,7 @@ namespace RStein.TOML
 
           if (parserState.CurrentChar == '"')
           {
-            await advance(parserState).ConfigureAwait(false);
+            await advance(parserState, useAsync).ConfigureAwait(false);
             return basicStringBuilder.ToString();
           }
 
@@ -1909,7 +1952,7 @@ namespace RStein.TOML
           }
           else if (isEscapedChar(parserState.CurrentChar))
           {
-            var escapedChar = await parseBasicEscapedChar(parserState).ConfigureAwait(false);
+            var escapedChar = await parseBasicEscapedChar(parserState, useAsync).ConfigureAwait(false);
             basicStringBuilder.Append(escapedChar);
           }
           else
@@ -1926,11 +1969,11 @@ namespace RStein.TOML
       }
     }
 
-    private static async ValueTask<char> parseBasicEscapedChar<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask<char> parseBasicEscapedChar<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       Debug.Assert(isEscapedChar(parserState.CurrentChar));
-      await advance(parserState).ConfigureAwait(false);
+      await advance(parserState, useAsync).ConfigureAwait(false);
       if (parserState.Eof)
       {
         throwTomlSerializerException(parserState, UNEXPECTED_END_OF_ESCAPED_CHAR_ERROR);
@@ -1975,7 +2018,9 @@ namespace RStein.TOML
                 ? EIGHT_CHARS
                 : TWO_CHARS;
             var numberChars = new char[requiredChars];
-            var readResult = await parserState.ReadAsync(new ArraySegment<char>(numberChars)).ConfigureAwait(false);
+            var readResult = useAsync
+              ? await parserState.ReadAsync(new ArraySegment<char>(numberChars)).ConfigureAwait(false)
+              : parserState.Read(new ArraySegment<char>(numberChars));
             if (readResult < requiredChars)
             {
               throwTomlSerializerException(parserState, UNEXPECTED_END_OF_ESCAPED_CHAR_ERROR);
@@ -2014,7 +2059,7 @@ namespace RStein.TOML
                                                         (ch >= 0x23 && ch <= 0x5B) || (ch >= 0x5D && ch <= 0x7E) ||
                                                         (isNonAsciiChar(ch));
 
-    private static async ValueTask<TomlTable> parseStandardTable<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask<TomlTable> parseStandardTable<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       try
@@ -2025,11 +2070,11 @@ namespace RStein.TOML
           throwTomlSerializerException(parserState, INVALID_TABLE_DEFINITION_ERROR);
         }
 
-        await advance(parserState).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
         throwIfEof(parserState);
-        var (key, parentTable) = await parseKey(parserState).ConfigureAwait(false);
+        var (key, parentTable) = await parseKey(parserState, useAsync).ConfigureAwait(false);
         var lastKeyPart = key.LastKeyPart;
-        await skipWhiteSpaces(parserState).ConfigureAwait(false);
+        await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
         if (parserState.CurrentChar != ']')
         {
           throwTomlSerializerException(parserState, INVALID_TABLE_DEFINITION_ERROR);
@@ -2054,10 +2099,10 @@ namespace RStein.TOML
           throwTomlSerializerException(parserState, $"Redefinition of table '{tableToken.Name}' is not allowed.");
         }
 
-        await advance(parserState).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
         if (!parserState.Eof && isWhiteSpace(parserState.CurrentChar))
         {
-          await skipWhiteSpaces(parserState).ConfigureAwait(false);
+          await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
         }
 
         if (!parserState.Eof)
@@ -2069,7 +2114,7 @@ namespace RStein.TOML
 
           if (parserState.CurrentChar == '#')
           {
-            _ = await parseComment(parserState).ConfigureAwait(false);
+            _ = await parseComment(parserState, useAsync).ConfigureAwait(false);
           }
         }
 
@@ -2083,7 +2128,7 @@ namespace RStein.TOML
       }
     }
 
-    private static async ValueTask<TomlComment> parseComment<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask<TomlComment> parseComment<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       try
@@ -2094,7 +2139,7 @@ namespace RStein.TOML
 
         while (parserState.CurrentLine == startCurrentLine)
         {
-          await advance(parserState).ConfigureAwait(false);
+          await advance(parserState, useAsync).ConfigureAwait(false);
           if (parserState.Eof || isNewLineChar(parserState))
           {
             break;
@@ -2178,24 +2223,24 @@ namespace RStein.TOML
       throwTomlSerializerException(parserState, UNEXPECTED_END_OF_TOML_DOCUMENT_ERROR);
     }
 
-    private static async ValueTask skipWhitespacesAndNewLines<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask skipWhitespacesAndNewLines<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       while (!parserState.Eof && (isWhiteSpace(parserState.CurrentChar) || isNewLineChar(parserState)))
       {
-        await skipWhiteSpaces(parserState).ConfigureAwait(false);
-        await skipNewLine(parserState).ConfigureAwait(false);
+        await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
+        await skipNewLine(parserState, useAsync).ConfigureAwait(false);
       }
     }
 
-    private static async ValueTask skipNewLine<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask skipNewLine<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       if (parserState.CurrentChar == '\r' )
       {
         if (peek(parserState) == '\n')
         {
-          await advance(parserState).ConfigureAwait(false);
+          await advance(parserState, useAsync).ConfigureAwait(false);
         }
         else
         {
@@ -2205,24 +2250,26 @@ namespace RStein.TOML
 
       if (parserState.CurrentChar == '\n')
       {
-        await advance(parserState).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
       }
     }
 
-    private static async ValueTask skipWhiteSpaces<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask skipWhiteSpaces<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       while (!parserState.Eof && isWhiteSpace(parserState.CurrentChar))
       {
-        await advance(parserState).ConfigureAwait(false);
+        await advance(parserState, useAsync).ConfigureAwait(false);
       }
     }
 
-    private static async ValueTask<bool> advance<TInputReader>(ParserState<TInputReader> parserState)
+    private static async ValueTask<bool> advance<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       char? readC;
-      if ((readC = await parserState.ReadCharAsync().ConfigureAwait(false)) != null)
+      if ((readC = useAsync
+            ? await parserState.ReadCharAsync().ConfigureAwait(false)
+            : parserState.ReadChar()) != null)
       {
         parserState.CurrentChar = readC.Value;
         if (parserState.CurrentChar == '\uFFFD')
