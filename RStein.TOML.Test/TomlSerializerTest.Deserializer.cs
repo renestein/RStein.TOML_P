@@ -1169,4 +1169,104 @@ internal partial class TomlSerializerTest
     Assert.That((string)table["package"]["version"]!, Is.EqualTo("1.0.0"));
   }
 
+  [Test]
+  public async Task Deserialize_When_Complex_Toml_String_Then_Returns_Expected_Data()
+  {
+    var tomlTable = new TomlTable()
+    {
+      {
+        "inlineTable1", new TomlInlineTable(new TomlKey("inlineTable", TomlKeyType.SimpleUnquoted))
+        {
+          HasFromInlineTableDefinition = true,
+          ["key1"] = new TomlPrimitiveValue("inlineValue", TomlValueType.String, TomlDataType.LiteralString),
+          ["key2"] = new TomlPrimitiveValue(8, TomlDataType.IntegerHex)
+        }
+      },
+      {"key1", new TomlPrimitiveValue("value1", TomlValueType.String, TomlDataType.BasicString)},
+      {"key2", new TomlPrimitiveValue(10)},
+      {"keyhex", new TomlPrimitiveValue(10, TomlDataType.IntegerHex)},
+      {"keyoct", new TomlPrimitiveValue(10, TomlDataType.IntegerOct)},
+      {"keybin", new TomlPrimitiveValue(10, TomlDataType.IntegerBin)},
+      {"keyf", new TomlPrimitiveValue(10.1111)},
+      {"keyd", new TomlPrimitiveValue(10.1111d)},
+      {"keydecimal", new TomlPrimitiveValue((decimal) 10.6666)},
+      {"arrInt", new TomlArray() {new TomlPrimitiveValue(1), new TomlPrimitiveValue(2), new TomlPrimitiveValue(3)}},
+      {"hybridArr", new TomlArray() {new TomlPrimitiveValue(1), new TomlPrimitiveValue("arrStringVal", TomlValueType.String, TomlDataType.LiteralString), new TomlPrimitiveValue(true)}},
+      {
+        "nested.Table", new TomlTable(new TomlKey("nested.Table", TomlKeyType.SimpleQuotedBasicString))
+        {
+          HasTopLevelDefinition = true,
+          ["key1"] = new TomlPrimitiveValue("tl1Value", TomlValueType.String, TomlDataType.BasicString),
+          ["key2"] = new TomlPrimitiveValue(32)
+        }
+      },
+      {
+        "nested.Table2", new TomlTable(new TomlKey("nested.Table2", TomlKeyType.SimpleQuotedBasicString))
+        {
+          HasTopLevelDefinition = true,
+          ["key1"] = new TomlPrimitiveValue("tl3Value", TomlValueType.String, TomlDataType.BasicString),
+          ["key2"] = new TomlPrimitiveValue(8, TomlDataType.IntegerBin)
+        }
+      }
+    };
+
+    var toml = await TomlSerializer.SerializeToStringAsync(tomlTable).ConfigureAwait(false);
+    var deserializedToml = TomlSerializer.Deserialize(toml);
+    var areTomlEquals = await tomlTable.DeepEqualsAsync(deserializedToml).ConfigureAwait(false);
+
+    Assert.That(areTomlEquals);
+  }
+
+  [Test]
+  public async Task Deserialize_When_Complex_Toml_Stream_Then_Returns_Expected_Data()
+  {
+    var tomlTable = new TomlTable()
+    {
+      {
+        "inlineTable1", new TomlInlineTable(new TomlKey("inlineTable", TomlKeyType.SimpleUnquoted))
+        {
+          HasFromInlineTableDefinition = true,
+          ["key1"] = new TomlPrimitiveValue("inlineValue", TomlValueType.String, TomlDataType.LiteralString),
+          ["key2"] = new TomlPrimitiveValue(8, TomlDataType.IntegerHex)
+        }
+      },
+      {"key1", new TomlPrimitiveValue("value1", TomlValueType.String, TomlDataType.BasicString)},
+      {"key2", new TomlPrimitiveValue(10)},
+      {"keyhex", new TomlPrimitiveValue(10, TomlDataType.IntegerHex)},
+      {"keyoct", new TomlPrimitiveValue(10, TomlDataType.IntegerOct)},
+      {"keybin", new TomlPrimitiveValue(10, TomlDataType.IntegerBin)},
+      {"keyf", new TomlPrimitiveValue(10.1111)},
+      {"keyd", new TomlPrimitiveValue(10.1111d)},
+      {"keydecimal", new TomlPrimitiveValue((decimal) 10.6666)},
+      {"arrInt", new TomlArray() {new TomlPrimitiveValue(1), new TomlPrimitiveValue(2), new TomlPrimitiveValue(3)}},
+      {"hybridArr", new TomlArray() {new TomlPrimitiveValue(1), new TomlPrimitiveValue("arrStringVal", TomlValueType.String, TomlDataType.LiteralString), new TomlPrimitiveValue(true)}},
+      {
+        "nested.Table", new TomlTable(new TomlKey("nested.Table", TomlKeyType.SimpleQuotedBasicString))
+        {
+          HasTopLevelDefinition = true,
+          ["key1"] = new TomlPrimitiveValue("tl1Value", TomlValueType.String, TomlDataType.BasicString),
+          ["key2"] = new TomlPrimitiveValue(32)
+        }
+      },
+      {
+        "nested.Table2", new TomlTable(new TomlKey("nested.Table2", TomlKeyType.SimpleQuotedBasicString))
+        {
+          HasTopLevelDefinition = true,
+          ["key1"] = new TomlPrimitiveValue("tl3Value", TomlValueType.String, TomlDataType.BasicString),
+          ["key2"] = new TomlPrimitiveValue(8, TomlDataType.IntegerBin)
+        }
+      }
+    };
+
+    var toml = await TomlSerializer.SerializeToStringAsync(tomlTable).ConfigureAwait(false);
+    var tomlStream = new MemoryStream(Encoding.UTF8.GetBytes(toml));
+    await using (tomlStream.ConfigureAwait(false))
+    {
+      var deserializedToml = TomlSerializer.Deserialize(tomlStream);
+      var areTomlEquals = await tomlTable.DeepEqualsAsync(deserializedToml).ConfigureAwait(false);
+
+      Assert.That(areTomlEquals);
+    }
+  }
+
 }
