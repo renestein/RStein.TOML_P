@@ -12,8 +12,16 @@ namespace RStein.TOML
     {
       Debug.Assert(context != null);
       var writer = context.TomlWriter;
-      await writer.BeginWriteCommentAsync(tomlComment).ConfigureAwait(false);
-      await writer.EndWriteCommentAsync(tomlComment).ConfigureAwait(false);
+      if (context.UseAsync)
+      {
+        await writer.BeginWriteCommentAsync(tomlComment).ConfigureAwait(false);
+        await writer.EndWriteCommentAsync(tomlComment).ConfigureAwait(false);
+      }
+      else
+      {
+        writer.BeginWriteComment(tomlComment);
+        writer.EndWriteComment(tomlComment);
+      }
     }
 
     public async ValueTask VisitAsync(TomlKeyValue tomlKeyValue,
@@ -29,8 +37,16 @@ namespace RStein.TOML
     {
       Debug.Assert(context != null);
       var writer = context.TomlWriter;
-      await writer.BeginWritePrimitiveValueAsync(tomlPrimitiveValue).ConfigureAwait(false);
-      await writer.EndWritePrimitiveValueAsync(tomlPrimitiveValue).ConfigureAwait(false);
+      if (context.UseAsync)
+      {
+        await writer.BeginWritePrimitiveValueAsync(tomlPrimitiveValue).ConfigureAwait(false);
+        await writer.EndWritePrimitiveValueAsync(tomlPrimitiveValue).ConfigureAwait(false);
+      }
+      else
+      {
+        writer.BeginWritePrimitiveValue(tomlPrimitiveValue);
+        writer.EndWritePrimitiveValue(tomlPrimitiveValue);
+      }
     }
 
     public async ValueTask VisitAsync(TomlTable tomlTable,
@@ -45,7 +61,10 @@ namespace RStein.TOML
 
       if (isRootTableName)
       {
-        await writer.BeginTomlDocumentAsync().ConfigureAwait(false);
+        if (context.UseAsync)
+          await writer.BeginTomlDocumentAsync().ConfigureAwait(false);
+        else
+          writer.BeginTomlDocument();
       }
       else if (tomlTable.HasFromKeyDefinition)
       {
@@ -77,7 +96,7 @@ namespace RStein.TOML
           }
         }
       }
-     
+
       var innerTables = tomlTable.Values.OfType<TomlTable>().Where(table => table.HasTopLevelDeclaration).ToArray();
 
       var emittedBeginStandardTable = false;
@@ -98,20 +117,39 @@ namespace RStein.TOML
             {
               var key = context.CurrentKeyForFromKeyTables.Clone();
               key.LastKeyPart.NextKeyPart = keyValue.Key;
-              await writer.BeginWriteKeyAsync(key).ConfigureAwait(false);
-              await writer.EndWriteKeyAsync(key).ConfigureAwait(false);
+              if (context.UseAsync)
+              {
+                await writer.BeginWriteKeyAsync(key).ConfigureAwait(false);
+                await writer.EndWriteKeyAsync(key).ConfigureAwait(false);
+              }
+              else
+              {
+                writer.BeginWriteKey(key);
+                writer.EndWriteKey(key);
+              }
             }
             else
             {
               if ((tomlTable.HasTopLevelDefinition) && !isRootTableName && !emittedBeginStandardTable)
               {
                 Debug.Assert(context.CurrentKeyForTopTables != null);
-                await writer.BeginWriteTableAsync(tomlTable, context.CurrentKeyForTopTables).ConfigureAwait(false);
+                if (context.UseAsync)
+                  await writer.BeginWriteTableAsync(tomlTable, context.CurrentKeyForTopTables).ConfigureAwait(false);
+                else
+                  writer.BeginWriteTable(tomlTable, context.CurrentKeyForTopTables);
                 emittedBeginStandardTable = true;
               }
 
-              await writer.BeginWriteKeyAsync(keyValue.Key).ConfigureAwait(false);
-              await writer.EndWriteKeyAsync(keyValue.Key).ConfigureAwait(false);
+              if (context.UseAsync)
+              {
+                await writer.BeginWriteKeyAsync(keyValue.Key).ConfigureAwait(false);
+                await writer.EndWriteKeyAsync(keyValue.Key).ConfigureAwait(false);
+              }
+              else
+              {
+                writer.BeginWriteKey(keyValue.Key);
+                writer.EndWriteKey(keyValue.Key);
+              }
             }
           }
           else
@@ -119,7 +157,10 @@ namespace RStein.TOML
             if (tomlTable.HasTopLevelDefinition && !isRootTableName && !emittedBeginStandardTable)
             {
               Debug.Assert(context.CurrentKeyForTopTables != null);
-              await writer.BeginWriteTableAsync(tomlTable, context.CurrentKeyForTopTables).ConfigureAwait(false);
+              if (context.UseAsync)
+                await writer.BeginWriteTableAsync(tomlTable, context.CurrentKeyForTopTables).ConfigureAwait(false);
+              else
+                writer.BeginWriteTable(tomlTable, context.CurrentKeyForTopTables);
               emittedBeginStandardTable = true;
             }
           }
@@ -134,16 +175,29 @@ namespace RStein.TOML
           await innerTable.AcceptVisitorAsync(this, context).ConfigureAwait(false);
         }
 
-        await writer.EndTomlDocumentAsync().ConfigureAwait(false);
+        if (context.UseAsync)
+          await writer.EndTomlDocumentAsync().ConfigureAwait(false);
+        else
+          writer.EndTomlDocument();
       }
       else if (tomlTable.HasFromKeyDefinition)
       {
         if (tomlTable.Count == 0)
         {
-          await writer.BeginWriteKeyAsync(tomlTable.FullName).ConfigureAwait(false);
-          await writer.EndWriteKeyAsync(tomlTable.FullName).ConfigureAwait(false);
-          await writer.BeginWriteInlineTableAsync(tomlTable).ConfigureAwait(false);
-          await writer.EndWriteInlineTableAsync(tomlTable).ConfigureAwait(false);
+          if (context.UseAsync)
+          {
+            await writer.BeginWriteKeyAsync(tomlTable.FullName).ConfigureAwait(false);
+            await writer.EndWriteKeyAsync(tomlTable.FullName).ConfigureAwait(false);
+            await writer.BeginWriteInlineTableAsync(tomlTable).ConfigureAwait(false);
+            await writer.EndWriteInlineTableAsync(tomlTable).ConfigureAwait(false);
+          }
+          else
+          {
+            writer.BeginWriteKey(tomlTable.FullName);
+            writer.EndWriteKey(tomlTable.FullName);
+            writer.BeginWriteInlineTable(tomlTable);
+            writer.EndWriteInlineTable(tomlTable);
+          }
         }
         context.CurrentKeyForFromKeyTables = oldCurrentKeyForFromKeyTables;
         foreach (var innerTable in innerTables)
@@ -156,14 +210,20 @@ namespace RStein.TOML
         if (tomlTable.HasTopLevelDefinition && !emittedBeginStandardTable)
         {
           Debug.Assert(context.CurrentKeyForTopTables != null);
-          await writer.BeginWriteTableAsync(tomlTable, context.CurrentKeyForTopTables).ConfigureAwait(false);
+          if (context.UseAsync)
+            await writer.BeginWriteTableAsync(tomlTable, context.CurrentKeyForTopTables).ConfigureAwait(false);
+          else
+            writer.BeginWriteTable(tomlTable, context.CurrentKeyForTopTables);
           emittedBeginStandardTable = true;
         }
 
         if (emittedBeginStandardTable)
         {
           Debug.Assert(tomlTable.HasTopLevelDefinition || tomlTable.IsArrayOfTablesMember);
-          await writer.EndWriteTableAsync(tomlTable).ConfigureAwait(false);
+          if (context.UseAsync)
+            await writer.EndWriteTableAsync(tomlTable).ConfigureAwait(false);
+          else
+            writer.EndWriteTable(tomlTable);
         }
 
         foreach (var innerTable in innerTables)
@@ -184,7 +244,10 @@ namespace RStein.TOML
       Debug.Assert(context != null);
 
       var writer = context.TomlWriter;
-      await writer.BeginWriteInlineTableAsync(tomlInlineTable).ConfigureAwait(false);
+      if (context.UseAsync)
+        await writer.BeginWriteInlineTableAsync(tomlInlineTable).ConfigureAwait(false);
+      else
+        writer.BeginWriteInlineTable(tomlInlineTable);
       var oldCurrentKeyForFromKeyTables = context.CurrentKeyForFromKeyTables;
       context.CurrentKeyForFromKeyTables = null;
       var isFirstItem = true;
@@ -198,16 +261,31 @@ namespace RStein.TOML
         }
         else
         {
-          await writer.BeginWriteInlineTableItemAsync(keyValuePair, isFirstItem).ConfigureAwait(false);
-          await writer.BeginWriteKeyAsync(keyValuePair.Key).ConfigureAwait(false);
-          await writer.EndWriteKeyAsync(keyValuePair.Key).ConfigureAwait(false);
+          if (context.UseAsync)
+          {
+            await writer.BeginWriteInlineTableItemAsync(keyValuePair, isFirstItem).ConfigureAwait(false);
+            await writer.BeginWriteKeyAsync(keyValuePair.Key).ConfigureAwait(false);
+            await writer.EndWriteKeyAsync(keyValuePair.Key).ConfigureAwait(false);
+          }
+          else
+          {
+            writer.BeginWriteInlineTableItem(keyValuePair, isFirstItem);
+            writer.BeginWriteKey(keyValuePair.Key);
+            writer.EndWriteKey(keyValuePair.Key);
+          }
           await keyValuePair.Value.AcceptVisitorAsync(this, context).ConfigureAwait(false);
-          await writer.EndWriteInlineTableItemAsync(keyValuePair, isFirstItem).ConfigureAwait(false);
+          if (context.UseAsync)
+            await writer.EndWriteInlineTableItemAsync(keyValuePair, isFirstItem).ConfigureAwait(false);
+          else
+            writer.EndWriteInlineTableItem(keyValuePair, isFirstItem);
           isFirstItem = false;
         }
       }
 
-      await writer.EndWriteInlineTableAsync(tomlInlineTable).ConfigureAwait(false);
+      if (context.UseAsync)
+        await writer.EndWriteInlineTableAsync(tomlInlineTable).ConfigureAwait(false);
+      else
+        writer.EndWriteInlineTable(tomlInlineTable);
       context.CurrentKeyForFromKeyTables = oldCurrentKeyForFromKeyTables;
 
       async Task writeFromKeyTable(TomlTable tomlTable)
@@ -225,11 +303,22 @@ namespace RStein.TOML
 
         if (tomlTable.Count == 0)
         {
-          await writer.BeginWriteInlineTableItemAsync(default, isFirstItem).ConfigureAwait(false);
-          await writer.BeginWriteKeyAsync(context.CurrentKeyForFromKeyTables).ConfigureAwait(false);
-          await writer.EndWriteKeyAsync(context.CurrentKeyForFromKeyTables).ConfigureAwait(false);
-          await tomlTable.AcceptVisitorAsync(this, context).ConfigureAwait(false);
-          await writer.EndWriteInlineTableItemAsync(default, isFirstItem).ConfigureAwait(false);
+          if (context.UseAsync)
+          {
+            await writer.BeginWriteInlineTableItemAsync(default, isFirstItem).ConfigureAwait(false);
+            await writer.BeginWriteKeyAsync(context.CurrentKeyForFromKeyTables).ConfigureAwait(false);
+            await writer.EndWriteKeyAsync(context.CurrentKeyForFromKeyTables).ConfigureAwait(false);
+            await tomlTable.AcceptVisitorAsync(this, context).ConfigureAwait(false);
+            await writer.EndWriteInlineTableItemAsync(default, isFirstItem).ConfigureAwait(false);
+          }
+          else
+          {
+            writer.BeginWriteInlineTableItem(default, isFirstItem);
+            writer.BeginWriteKey(context.CurrentKeyForFromKeyTables);
+            writer.EndWriteKey(context.CurrentKeyForFromKeyTables);
+            await tomlTable.AcceptVisitorAsync(this, context).ConfigureAwait(false);
+            writer.EndWriteInlineTableItem(default, isFirstItem);
+          }
         }
         else
         {
@@ -243,11 +332,22 @@ namespace RStein.TOML
 
             var key = context.CurrentKeyForFromKeyTables.Clone();
             key.LastKeyPart.NextKeyPart = keyPair.Key;
-            await writer.BeginWriteInlineTableItemAsync(keyPair, isFirstItem).ConfigureAwait(false);
-            await writer.BeginWriteKeyAsync(key).ConfigureAwait(false);
-            await writer.EndWriteKeyAsync(key).ConfigureAwait(false);
-            await keyPair.Value.AcceptVisitorAsync(this, context).ConfigureAwait(false);
-            await writer.EndWriteInlineTableItemAsync(keyPair, isFirstItem).ConfigureAwait(false);
+            if (context.UseAsync)
+            {
+              await writer.BeginWriteInlineTableItemAsync(keyPair, isFirstItem).ConfigureAwait(false);
+              await writer.BeginWriteKeyAsync(key).ConfigureAwait(false);
+              await writer.EndWriteKeyAsync(key).ConfigureAwait(false);
+              await keyPair.Value.AcceptVisitorAsync(this, context).ConfigureAwait(false);
+              await writer.EndWriteInlineTableItemAsync(keyPair, isFirstItem).ConfigureAwait(false);
+            }
+            else
+            {
+              writer.BeginWriteInlineTableItem(keyPair, isFirstItem);
+              writer.BeginWriteKey(key);
+              writer.EndWriteKey(key);
+              await keyPair.Value.AcceptVisitorAsync(this, context).ConfigureAwait(false);
+              writer.EndWriteInlineTableItem(keyPair, isFirstItem);
+            }
             isFirstItem = false;
           }
         }
@@ -261,15 +361,27 @@ namespace RStein.TOML
     {
       Debug.Assert(context != null);
       var writer = context.TomlWriter;
-      await writer.BeginWriteArrayAsync(tomlArray).ConfigureAwait(false);
+      if (context.UseAsync)
+        await writer.BeginWriteArrayAsync(tomlArray).ConfigureAwait(false);
+      else
+        writer.BeginWriteArray(tomlArray);
       foreach (TomlValue item in tomlArray)
       {
-        await writer.BeginWriteArrayItemAsync(item).ConfigureAwait(false);
+        if (context.UseAsync)
+          await writer.BeginWriteArrayItemAsync(item).ConfigureAwait(false);
+        else
+          writer.BeginWriteArrayItem(item);
         await item.AcceptVisitorAsync(this, context).ConfigureAwait(false);
-        await writer.EndWriteArrayItemAsync(item).ConfigureAwait(false);
+        if (context.UseAsync)
+          await writer.EndWriteArrayItemAsync(item).ConfigureAwait(false);
+        else
+          writer.EndWriteArrayItem(item);
       }
 
-      await writer.EndWriteArrayAsync(tomlArray).ConfigureAwait(false);
+      if (context.UseAsync)
+        await writer.EndWriteArrayAsync(tomlArray).ConfigureAwait(false);
+      else
+        writer.EndWriteArray(tomlArray);
     }
 
     public async ValueTask VisitAsync(TomlArrayOfTables tomlArrayOfTables,
@@ -295,12 +407,24 @@ namespace RStein.TOML
         {
           if (firstItem && writer.LastState != TomlWriterState.WritingTomlDocument)
           {
-            await writer.WriteLineAsync().ConfigureAwait(false);
+            if (context.UseAsync)
+              await writer.WriteLineAsync().ConfigureAwait(false);
+            else
+              writer.WriteLine();
             firstItem = false;
           }
-          await writer.BeginWriteArrayOfTablesAsync(tomlArrayOfTables, context.CurrentKeyForTopTables).ConfigureAwait(false);
-          await item.AcceptVisitorAsync(this, context).ConfigureAwait(false);
-          await writer.EndWriteArrayOfTablesAsync(tomlArrayOfTables).ConfigureAwait(false);
+          if (context.UseAsync)
+          {
+            await writer.BeginWriteArrayOfTablesAsync(tomlArrayOfTables, context.CurrentKeyForTopTables).ConfigureAwait(false);
+            await item.AcceptVisitorAsync(this, context).ConfigureAwait(false);
+            await writer.EndWriteArrayOfTablesAsync(tomlArrayOfTables).ConfigureAwait(false);
+          }
+          else
+          {
+            writer.BeginWriteArrayOfTables(tomlArrayOfTables, context.CurrentKeyForTopTables);
+            await item.AcceptVisitorAsync(this, context).ConfigureAwait(false);
+            writer.EndWriteArrayOfTables(tomlArrayOfTables);
+          }
         }
       }
       finally
@@ -314,8 +438,16 @@ namespace RStein.TOML
     {
       Debug.Assert(context != null);
       var writer = context.TomlWriter;
-      await writer.BeginWriteKeyAsync(tomlKey).ConfigureAwait(false);
-      await writer.EndWriteKeyAsync(tomlKey).ConfigureAwait(false);
+      if (context.UseAsync)
+      {
+        await writer.BeginWriteKeyAsync(tomlKey).ConfigureAwait(false);
+        await writer.EndWriteKeyAsync(tomlKey).ConfigureAwait(false);
+      }
+      else
+      {
+        writer.BeginWriteKey(tomlKey);
+        writer.EndWriteKey(tomlKey);
+      }
     }
   }
 }
