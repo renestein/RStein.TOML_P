@@ -7,7 +7,7 @@ namespace RStein.TOML
 {
   internal class TomlSerializerVisitor : ITomlVisitor<TomlSerializerVisitorContext>
   {
-    public async ValueTask Visit(TomlComment tomlComment,
+    public async ValueTask VisitAsync(TomlComment tomlComment,
                                  TomlSerializerVisitorContext context)
     {
       Debug.Assert(context != null);
@@ -16,7 +16,7 @@ namespace RStein.TOML
       await writer.EndWriteCommentAsync(tomlComment).ConfigureAwait(false);
     }
 
-    public async ValueTask Visit(TomlKeyValue tomlKeyValue,
+    public async ValueTask VisitAsync(TomlKeyValue tomlKeyValue,
                                  TomlSerializerVisitorContext context)
     {
       Debug.Assert(context != null);
@@ -24,7 +24,7 @@ namespace RStein.TOML
       await tomlKeyValue.Value.AcceptVisitorAsync(this, context).ConfigureAwait(false);
     }
 
-    public async ValueTask Visit(TomlPrimitiveValue tomlPrimitiveValue,
+    public async ValueTask VisitAsync(TomlPrimitiveValue tomlPrimitiveValue,
                                  TomlSerializerVisitorContext context)
     {
       Debug.Assert(context != null);
@@ -33,7 +33,7 @@ namespace RStein.TOML
       await writer.EndWritePrimitiveValueAsync(tomlPrimitiveValue).ConfigureAwait(false);
     }
 
-    public async ValueTask Visit(TomlTable tomlTable,
+    public async ValueTask VisitAsync(TomlTable tomlTable,
                                  TomlSerializerVisitorContext context)
     {
       Debug.Assert(context != null);
@@ -178,7 +178,7 @@ namespace RStein.TOML
       }
     }
 
-    public async ValueTask Visit(TomlInlineTable tomlInlineTable,
+    public async ValueTask VisitAsync(TomlInlineTable tomlInlineTable,
                                  TomlSerializerVisitorContext context)
     {
       Debug.Assert(context != null);
@@ -256,7 +256,7 @@ namespace RStein.TOML
       }
     }
 
-    public async ValueTask Visit(TomlArray tomlArray,
+    public async ValueTask VisitAsync(TomlArray tomlArray,
                                  TomlSerializerVisitorContext context)
     {
       Debug.Assert(context != null);
@@ -272,7 +272,7 @@ namespace RStein.TOML
       await writer.EndWriteArrayAsync(tomlArray).ConfigureAwait(false);
     }
 
-    public async ValueTask Visit(TomlArrayOfTables tomlArrayOfTables,
+    public async ValueTask VisitAsync(TomlArrayOfTables tomlArrayOfTables,
                                  TomlSerializerVisitorContext context)
     {
       Debug.Assert(context != null);
@@ -309,7 +309,7 @@ namespace RStein.TOML
       }
     }
 
-    public async ValueTask Visit(TomlKey tomlKey,
+    public async ValueTask VisitAsync(TomlKey tomlKey,
                                  TomlSerializerVisitorContext context)
     {
       Debug.Assert(context != null);

@@ -113,28 +113,28 @@ namespace RStein.TOML
       switch (TokenType)
       {
         case TomlTokenType.Table:
-          await tomlVisitor.Visit((TomlTable)this, context).ConfigureAwait(false);
+          await tomlVisitor.VisitAsync((TomlTable)this, context).ConfigureAwait(false);
           break;
         case TomlTokenType.KeyValue:
-          await tomlVisitor.Visit((TomlKeyValue)this, context).ConfigureAwait(false);
+          await tomlVisitor.VisitAsync((TomlKeyValue)this, context).ConfigureAwait(false);
           break;
         case TomlTokenType.Comment:
-          await tomlVisitor.Visit((TomlComment)this, context).ConfigureAwait(false);
+          await tomlVisitor.VisitAsync((TomlComment)this, context).ConfigureAwait(false);
           break;
         case TomlTokenType.PrimitiveValue:
-          await tomlVisitor.Visit((TomlPrimitiveValue)this, context).ConfigureAwait(false);
+          await tomlVisitor.VisitAsync((TomlPrimitiveValue)this, context).ConfigureAwait(false);
           break;
         case TomlTokenType.Array:
-          await tomlVisitor.Visit((TomlArray)this, context).ConfigureAwait(false);
+          await tomlVisitor.VisitAsync((TomlArray)this, context).ConfigureAwait(false);
           break;
         case TomlTokenType.Key:
-          await tomlVisitor.Visit((TomlKey)this, context).ConfigureAwait(false);
+          await tomlVisitor.VisitAsync((TomlKey)this, context).ConfigureAwait(false);
           break;
         case TomlTokenType.ArrayOfTables:
-          await tomlVisitor.Visit((TomlArrayOfTables)this, context).ConfigureAwait(false);
+          await tomlVisitor.VisitAsync((TomlArrayOfTables)this, context).ConfigureAwait(false);
           break;
         case TomlTokenType.InlineTable:
-          await tomlVisitor.Visit((TomlInlineTable)this, context).ConfigureAwait(false);
+          await tomlVisitor.VisitAsync((TomlInlineTable)this, context).ConfigureAwait(false);
           break;
         default:
           throw new ArgumentOutOfRangeException();

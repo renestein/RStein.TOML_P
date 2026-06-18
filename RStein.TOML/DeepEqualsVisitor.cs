@@ -4,7 +4,7 @@ namespace RStein.TOML
 {
   internal class DeepEqualsVisitor : ITomlVisitor<DeepEqualsVisitorContext>
   {
-    public ValueTask Visit(TomlComment tomlComment,
+    public ValueTask VisitAsync(TomlComment tomlComment,
                            DeepEqualsVisitorContext context)
     {
       if (!context.DeepEqualsResult)
@@ -20,7 +20,7 @@ namespace RStein.TOML
       return new ValueTask();
     }
 
-    public ValueTask Visit(TomlKeyValue tomlKeyValue,
+    public ValueTask VisitAsync(TomlKeyValue tomlKeyValue,
                            DeepEqualsVisitorContext context)
     {
       if (!context.DeepEqualsResult)
@@ -36,7 +36,7 @@ namespace RStein.TOML
       return new ValueTask();
     }
 
-    public ValueTask Visit(TomlPrimitiveValue tomlPrimitiveValue,
+    public ValueTask VisitAsync(TomlPrimitiveValue tomlPrimitiveValue,
                            DeepEqualsVisitorContext context)
     {
 
@@ -53,7 +53,7 @@ namespace RStein.TOML
       return new ValueTask();
     }
 
-    public async ValueTask Visit(TomlTable tomlTable,
+    public async ValueTask VisitAsync(TomlTable tomlTable,
                                  DeepEqualsVisitorContext context)
     {
       if (!context.DeepEqualsResult)
@@ -92,7 +92,7 @@ namespace RStein.TOML
       context.OtherToken = secondTable;
     }
 
-    public async ValueTask Visit(TomlInlineTable tomlInlineTable,
+    public async ValueTask VisitAsync(TomlInlineTable tomlInlineTable,
                                  DeepEqualsVisitorContext context)
     {
 
@@ -134,7 +134,7 @@ namespace RStein.TOML
       context.OtherToken = secondTable;
     }
 
-    public async ValueTask Visit(TomlArray tomlArray,
+    public async ValueTask VisitAsync(TomlArray tomlArray,
                                  DeepEqualsVisitorContext context)
     {
 
@@ -170,7 +170,7 @@ namespace RStein.TOML
       context.OtherToken = secondArray;
     }
 
-    public async ValueTask Visit(TomlArrayOfTables tomlArrayOfTables,
+    public async ValueTask VisitAsync(TomlArrayOfTables tomlArrayOfTables,
                                  DeepEqualsVisitorContext context)
     {
       if (!context.DeepEqualsResult)
@@ -205,7 +205,7 @@ namespace RStein.TOML
       context.OtherToken = secondArray;
     }
 
-    public ValueTask Visit(TomlKey tomlKey,
+    public ValueTask VisitAsync(TomlKey tomlKey,
                            DeepEqualsVisitorContext context)
     {
       if (!context.DeepEqualsResult)
