@@ -33,7 +33,7 @@ jobs:
         dotnet-version: ${{ matrix.dotnet_version }}
         dotnet-quality: ${{ matrix.dotnet_quality }}
     - name: Restore dependencies
-      run: dotnet restore
+      run: dotnet restore -p:TargetFrameworks=${{ matrix.framework }}
     - name: Build
       run: dotnet build --no-restore -f ${{ matrix.framework }}
     - name: Test
