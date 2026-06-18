@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -11,6 +11,68 @@ namespace RStein.TOML
   /// </summary>
   public static class TomlSerializer
   {
+    /// <summary>
+    /// Deserializes a TOML string to a <see cref="TomlTable"/>.
+    /// </summary>
+    /// <param name="toml">The TOML content to deserialize.</param>
+    /// <returns>The deserialized <see cref="TomlTable"/>.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="toml"/> is <c>null</c>.</exception>
+    /// <exception cref="TomlSerializerException">Thrown when the TOML content cannot be parsed.</exception>
+    public static TomlTable Deserialize(string toml)
+    {
+      return Deserialize(toml, TomlSettings.Default);
+    }
+
+    /// <summary>
+    /// Deserializes a TOML string to a <see cref="TomlTable"/> using the specified settings.
+    /// </summary>
+    /// <param name="toml">The TOML content to deserialize.</param>
+    /// <param name="tomlSettings">The settings to use for deserialization. If <c>null</c>, default settings are used.</param>
+    /// <returns>The deserialized <see cref="TomlTable"/>.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="toml"/> is <c>null</c>.</exception>
+    /// <exception cref="TomlSerializerException">Thrown when the TOML content cannot be parsed.</exception>
+    public static TomlTable Deserialize(string toml,
+                                        TomlSettings? tomlSettings)
+    {
+      if (toml == null)
+      {
+        throw new ArgumentNullException(nameof(toml));
+      }
+
+      return TomlParser.Parse(toml, tomlSettings);
+    }
+
+    /// <summary>
+    /// Deserializes TOML content from a stream to a <see cref="TomlTable"/>.
+    /// </summary>
+    /// <param name="tomlStream">The stream containing TOML content to deserialize.</param>
+    /// <returns>The deserialized <see cref="TomlTable"/>.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="tomlStream"/> is <c>null</c>.</exception>
+    /// <exception cref="TomlSerializerException">Thrown when the TOML content cannot be parsed.</exception>
+    public static TomlTable Deserialize(Stream tomlStream)
+    {
+      return Deserialize(tomlStream, TomlSettings.Default);
+    }
+
+    /// <summary>
+    /// Deserializes TOML content from a stream to a <see cref="TomlTable"/> using the specified settings.
+    /// </summary>
+    /// <param name="tomlStream">The stream containing TOML content to deserialize.</param>
+    /// <param name="tomlSettings">The settings to use for deserialization. If <c>null</c>, default settings are used.</param>
+    /// <returns>The deserialized <see cref="TomlTable"/>.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="tomlStream"/> is <c>null</c>.</exception>
+    /// <exception cref="TomlSerializerException">Thrown when the TOML content cannot be parsed.</exception>
+    public static TomlTable Deserialize(Stream tomlStream,
+                                        TomlSettings? tomlSettings)
+    {
+      if (tomlStream == null)
+      {
+        throw new ArgumentNullException(nameof(tomlStream));
+      }
+
+      return TomlParser.Parse(tomlStream, tomlSettings ?? TomlSettings.Default);
+    }
+
     /// <summary>
     /// Asynchronously deserializes a TOML string to a <see cref="TomlTable"/>.
     /// </summary>
