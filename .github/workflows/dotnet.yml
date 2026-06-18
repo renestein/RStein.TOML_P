@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:      
-        dotnet_version: ['9.0.x', '10.0.x']
+        dotnet_version: ['9.0.x', '10.0.x', '11.0.x']
     steps:
     - uses: actions/checkout@v4
     - name: Setup .NET
@@ -40,6 +40,11 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:  
         dotnet-version: '10.0.x'
+    - name: Setup .NET 11 (Windows)
+      uses: actions/setup-dotnet@v4
+      with:  
+        dotnet-version: '11.0.x'
+    
     - name: build + test
       run: build.bat
       shell: cmd
