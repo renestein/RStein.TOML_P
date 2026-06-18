@@ -22,6 +22,8 @@ jobs:
             dotnet_quality: 'preview'
     steps:
     - uses: actions/checkout@v4
+    - name: Remove pre-installed dotnet
+      run: sudo rm -rf /usr/share/dotnet
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
