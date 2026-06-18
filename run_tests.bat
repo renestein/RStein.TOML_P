@@ -23,12 +23,23 @@ echo ### Running external encoder/decoder tests (.NET 10, TOML 1.1)###
 toml-test-v2.1.0-windows-amd64.exe  test -decoder "RStein.Toml.ExternalTest.Decoder\bin\Release\net9.0\RStein.Toml.ExternalTest.Decoder.exe Toml11" -encoder "RStein.Toml.ExternalTest.Encoder\bin\Release\net10.0\RStein.Toml.ExternalTest.Encoder.exe" -toml 1.1 -skip valid/key/quoted-unicode,valid/string/quoted-unicode,valid/multibyte,valid/string/multibyte,valid/string/multibyte-escape,
 IF NOT %errorlevel%==0 GOTO error
 
+echo:
+echo ### Running external encoder/decoder tests (.NET 11, TOML 1.1)###
+toml-test-v2.1.0-windows-amd64.exe  test -decoder "RStein.Toml.ExternalTest.Decoder\bin\Release\net11.0\RStein.Toml.ExternalTest.Decoder.exe Toml11" -encoder "RStein.Toml.ExternalTest.Encoder\bin\Release\net10.0\RStein.Toml.ExternalTest.Encoder.exe" -toml 1.1 -skip valid/key/quoted-unicode,valid/string/quoted-unicode,valid/multibyte,valid/string/multibyte,valid/string/multibyte-escape,
+IF NOT %errorlevel%==0 GOTO error
+
+
 echo ### Running external encoder/decoder tests (.NET 9, TOML 1.0)###
 toml-test-v2.1.0-windows-amd64.exe  test -decoder "RStein.Toml.ExternalTest.Decoder\bin\Release\net9.0\RStein.Toml.ExternalTest.Decoder.exe Toml10" -encoder "RStein.Toml.ExternalTest.Encoder\bin\Release\net9.0\RStein.Toml.ExternalTest.Encoder.exe" -toml 1.0 -skip valid/key/quoted-unicode,valid/string/quoted-unicode,valid/multibyte,valid/string/multibyte,valid/string/multibyte-escape,
 IF NOT %errorlevel%==0 GOTO error
 
 echo:
 echo ### Running external encoder/decoder tests (.NET 10, TOML 1.0)###
+toml-test-v2.1.0-windows-amd64.exe  test -decoder "RStein.Toml.ExternalTest.Decoder\bin\Release\net11.0\RStein.Toml.ExternalTest.Decoder.exe Toml10" -encoder "RStein.Toml.ExternalTest.Encoder\bin\Release\net10.0\RStein.Toml.ExternalTest.Encoder.exe" -toml 1.0 -skip valid/key/quoted-unicode,valid/string/quoted-unicode,valid/multibyte,valid/string/multibyte,valid/string/multibyte-escape,
+IF NOT %errorlevel%==0 GOTO error
+
+echo:
+echo ### Running external encoder/decoder tests (.NET 11, TOML 1.0)###
 toml-test-v2.1.0-windows-amd64.exe  test -decoder "RStein.Toml.ExternalTest.Decoder\bin\Release\net9.0\RStein.Toml.ExternalTest.Decoder.exe Toml10" -encoder "RStein.Toml.ExternalTest.Encoder\bin\Release\net10.0\RStein.Toml.ExternalTest.Encoder.exe" -toml 1.0 -skip valid/key/quoted-unicode,valid/string/quoted-unicode,valid/multibyte,valid/string/multibyte,valid/string/multibyte-escape,
 IF NOT %errorlevel%==0 GOTO error
 exit /B 0
