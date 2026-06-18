@@ -7,19 +7,26 @@ on:
     branches: [ "main" ]
 
 jobs:
-  
+
   build_ubuntu:
     name: Ubuntu
     runs-on: ubuntu-latest
     strategy:
-      matrix:      
-        dotnet_version: ['9.0.x', '10.0.x', '11.0.x']
+      matrix:
+        include:
+          - dotnet_version: '9.0.x'
+            dotnet_quality: 'ga'
+          - dotnet_version: '10.0.x'
+            dotnet_quality: 'ga'
+          - dotnet_version: '11.0.x'
+            dotnet_quality: 'preview'
     steps:
     - uses: actions/checkout@v4
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ matrix.dotnet_version }}
+        dotnet-quality: ${{ matrix.dotnet_quality }}
     - name: Restore dependencies
       run: dotnet restore
     - name: Build
@@ -29,28 +36,29 @@ jobs:
 
   build_win:
     name: Windows
-    runs-on: windows-latest   
+    runs-on: windows-latest
     steps:
     - uses: actions/checkout@v4
     - name: Setup .NET 9 (Windows)
       uses: actions/setup-dotnet@v4
-      with:  
+      with:
         dotnet-version: '9.0.x'
     - name: Setup .NET 10 (Windows)
       uses: actions/setup-dotnet@v4
-      with:  
+      with:
         dotnet-version: '10.0.x'
     - name: Setup .NET 11 (Windows)
       uses: actions/setup-dotnet@v4
-      with:  
+      with:
         dotnet-version: '11.0.x'
-    
+        dotnet-quality: 'preview'
+
     - name: build + test
       run: build.bat
       shell: cmd
       working-directory: ${{ github.workspace }}
   deploy-docs:
-    runs-on: ubuntu-latest   
+    runs-on: ubuntu-latest
     needs: [build_ubuntu]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
@@ -71,13 +79,13 @@ jobs:
       - name: Install DocFX
         run: dotnet tool update -g docfx
 
-      - name: Build Docs      
+      - name: Build Docs
         run: docfx doc/docfx.json
 
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
-        with:        
-          path: doc/_site 
+        with:
+          path: doc/_site
 
       - name: Deploy to GitHub Pages
         id: deployment
