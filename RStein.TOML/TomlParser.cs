@@ -36,7 +36,7 @@ namespace RStein.TOML
         throw new ArgumentNullException(nameof(toml));
       }
 
-      tomlSettings = tomlSettings ?? TomlSettings.Default;
+      tomlSettings ??= TomlSettings.Default;
       var parserState = new ParserState<StringInputReader>(new StringInputReader(toml), tomlSettings)
       {
         CancellationToken = CancellationToken.None
