@@ -1,6 +1,4 @@
-﻿using System.Runtime.CompilerServices;
-
-namespace RStein.TOML
+﻿namespace RStein.TOML
 {
   internal static class CharExtensions
   {
