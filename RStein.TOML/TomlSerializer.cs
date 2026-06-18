@@ -213,10 +213,69 @@ namespace RStein.TOML
       await serializeToTextWriterAsync(tomlToken, textWriter, tomlSettings, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Serializes a <see cref="TomlToken"/> to a TOML string.
+    /// </summary>
+    /// <param name="tomlToken">The TOML token to serialize.</param>
+    /// <returns>The serialized TOML string.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="tomlToken"/> is <c>null</c>.</exception>
+    /// <exception cref="TomlSerializerException">Thrown when the token cannot be serialized.</exception>
+    public static string SerializeToString(TomlToken tomlToken)
+    {
+      return SerializeToString(tomlToken, null);
+    }
+
+    /// <summary>
+    /// Serializes a <see cref="TomlToken"/> to a TOML string using the specified settings.
+    /// </summary>
+    /// <param name="tomlToken">The TOML token to serialize.</param>
+    /// <param name="tomlSettings">The settings to use for serialization. If <c>null</c>, default settings are used.</param>
+    /// <returns>The serialized TOML string.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="tomlToken"/> is <c>null</c>.</exception>
+    /// <exception cref="TomlSerializerException">Thrown when the token cannot be serialized.</exception>
+    public static string SerializeToString(TomlToken tomlToken, TomlSettings? tomlSettings)
+    {
+      using var stringWriter = new StringWriter();
+      serializeToTextWriterAsync(tomlToken, stringWriter, tomlSettings, CancellationToken.None, useAsync: false).GetAwaiter().GetResult();
+      return stringWriter.ToString();
+    }
+
+    /// <summary>
+    /// Serializes a <see cref="TomlToken"/> to a stream in TOML format.
+    /// </summary>
+    /// <param name="tomlToken">The TOML token to serialize.</param>
+    /// <param name="stream">The stream to write the serialized TOML content to.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="tomlToken"/> or <paramref name="stream"/> is <c>null</c>.</exception>
+    /// <exception cref="TomlSerializerException">Thrown when the token cannot be serialized.</exception>
+    public static void Serialize(TomlToken tomlToken, Stream stream)
+    {
+      Serialize(tomlToken, stream, null);
+    }
+
+    /// <summary>
+    /// Serializes a <see cref="TomlToken"/> to a stream in TOML format using the specified settings.
+    /// </summary>
+    /// <param name="tomlToken">The TOML token to serialize.</param>
+    /// <param name="stream">The stream to write the serialized TOML content to.</param>
+    /// <param name="tomlSettings">The settings to use for serialization. If <c>null</c>, default settings are used.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="tomlToken"/> or <paramref name="stream"/> is <c>null</c>.</exception>
+    /// <exception cref="TomlSerializerException">Thrown when the token cannot be serialized.</exception>
+    public static void Serialize(TomlToken tomlToken, Stream stream, TomlSettings? tomlSettings)
+    {
+      if (stream == null)
+      {
+        throw new ArgumentNullException(nameof(stream));
+      }
+
+      using var textWriter = new StreamWriter(stream, Encoding.UTF8);
+      serializeToTextWriterAsync(tomlToken, textWriter, tomlSettings, CancellationToken.None, useAsync: false).GetAwaiter().GetResult();
+    }
+
     private static async ValueTask serializeToTextWriterAsync(TomlToken tomlToken,
                                                               TextWriter textWriter,
                                                               TomlSettings? tomlSettings,
-                                                              CancellationToken cancellationToken)
+                                                              CancellationToken cancellationToken,
+                                                              bool useAsync = true)
     {
       try
       {
@@ -237,7 +296,8 @@ namespace RStein.TOML
         var context = new TomlSerializerVisitorContext(writer)
         {
           TomlSettings = tomlSettings,
-          CancellationToken = cancellationToken
+          CancellationToken = cancellationToken,
+          UseAsync = useAsync
         };
 
         await tomlToken.AcceptVisitorAsync(serializerVisitor, context).ConfigureAwait(false);
