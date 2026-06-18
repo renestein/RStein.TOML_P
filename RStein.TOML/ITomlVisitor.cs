@@ -4,13 +4,13 @@ namespace RStein.TOML
 {
   internal interface ITomlVisitor<in TContext>
   {
-    ValueTask Visit(TomlComment tomlComment, TContext context);
-    ValueTask Visit(TomlKeyValue tomlKeyValue, TContext context);
-    ValueTask Visit(TomlPrimitiveValue tomlPrimitiveValue, TContext context);
-    ValueTask Visit(TomlTable tomlTable, TContext context);
-    ValueTask Visit(TomlInlineTable tomlInlineTable, TContext context);
-    ValueTask Visit(TomlArray tomlArray, TContext context);
-    ValueTask Visit(TomlArrayOfTables tomlArrayOfTables, TContext context);
-    ValueTask Visit(TomlKey tomlKey, TContext context);
+    ValueTask VisitAsync(TomlComment tomlComment, TContext context);
+    ValueTask VisitAsync(TomlKeyValue tomlKeyValue, TContext context);
+    ValueTask VisitAsync(TomlPrimitiveValue tomlPrimitiveValue, TContext context);
+    ValueTask VisitAsync(TomlTable tomlTable, TContext context);
+    ValueTask VisitAsync(TomlInlineTable tomlInlineTable, TContext context);
+    ValueTask VisitAsync(TomlArray tomlArray, TContext context);
+    ValueTask VisitAsync(TomlArrayOfTables tomlArrayOfTables, TContext context);
+    ValueTask VisitAsync(TomlKey tomlKey, TContext context);
   }
 }
