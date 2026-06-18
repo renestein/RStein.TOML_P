@@ -1,7 +1,4 @@
-﻿using RStein.TOML.Test.Helpers;
-using System.Net.NetworkInformation;
-
-namespace RStein.TOML.Test;
+﻿namespace RStein.TOML.Test;
 
 [TestFixture]
 internal partial class TomlSerializerTest

@@ -1,6 +1,4 @@
-﻿using System.Text;
-
-namespace RStein.TOML.Test.Helpers;
+﻿namespace RStein.TOML.Test.Helpers;
 
 public class FakeTomlDataGenerator
 {
