@@ -41,5 +41,11 @@ namespace RStein.TOML
       get => _cancellationToken;
       set => _cancellationToken = value;
     }
+
+    public bool UseAsync
+    {
+      get;
+      set;
+    } = true;
   }
 }
