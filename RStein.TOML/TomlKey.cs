@@ -30,15 +30,6 @@ namespace RStein.TOML
 
     }
 
-    private TomlKey(TomlKey tomlKey) : base(tomlKey.TokenType)
-    {
-      NextKeyPart = tomlKey.NextKeyPart == null
-        ? null
-        : new TomlKey(tomlKey.NextKeyPart);
-      RawKey = tomlKey.RawKey;
-      Type = tomlKey.Type;
-    }
-
     /// <summary>
     /// Gets or sets the next part of this key.
     /// </summary>
@@ -100,7 +91,18 @@ namespace RStein.TOML
     /// <returns>A new <see cref="TomlKey"/> instance that is a copy of this key.</returns>
     public TomlKey Clone()
     {
-      return new TomlKey(this);
+      var clonedHead = new TomlKey(RawKey, Type);
+      var clonedTail = clonedHead;
+      var sourcePart = NextKeyPart;
+      while (sourcePart != null)
+      {
+        var clonedPart = new TomlKey(sourcePart.RawKey, sourcePart.Type);
+        clonedTail.NextKeyPart = clonedPart;
+        clonedTail = clonedPart;
+        sourcePart = sourcePart.NextKeyPart;
+      }
+
+      return clonedHead;
     }
 
     /// <summary>
