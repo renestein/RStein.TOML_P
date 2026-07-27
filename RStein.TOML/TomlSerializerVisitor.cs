@@ -289,69 +289,83 @@ namespace RStein.TOML
 
       async Task writeFromKeyTable(TomlTable tomlTable)
       {
-        var oldContextKey = context.CurrentKeyForFromKeyTables;
-        if (context.CurrentKeyForFromKeyTables == null)
+        context.RecursionDepth++;
+        try
         {
-          context.CurrentKeyForFromKeyTables = tomlTable.FullName;
-        }
-        else
-        {
-          context.CurrentKeyForFromKeyTables = context.CurrentKeyForFromKeyTables.Clone();
-          context.CurrentKeyForFromKeyTables.LastKeyPart.NextKeyPart = tomlTable.FullName;
-        }
-
-        if (tomlTable.Count == 0)
-        {
-          if (context.UseAsync)
+          if (context.RecursionDepth > context.TomlSettings.MaxNestingDepth)
           {
-            await writer.BeginWriteInlineTableItemAsync(default, isFirstItem).ConfigureAwait(false);
-            await writer.BeginWriteKeyAsync(context.CurrentKeyForFromKeyTables).ConfigureAwait(false);
-            await writer.EndWriteKeyAsync(context.CurrentKeyForFromKeyTables).ConfigureAwait(false);
-            await tomlTable.AcceptVisitorAsync(this, context).ConfigureAwait(false);
-            await writer.EndWriteInlineTableItemAsync(default, isFirstItem).ConfigureAwait(false);
+            throw new TomlSerializerException($"Maximum nesting depth ({context.TomlSettings.MaxNestingDepth}) exceeded.");
+          }
+
+          var oldContextKey = context.CurrentKeyForFromKeyTables;
+          if (context.CurrentKeyForFromKeyTables == null)
+          {
+            context.CurrentKeyForFromKeyTables = tomlTable.FullName;
           }
           else
           {
-            writer.BeginWriteInlineTableItem(default, isFirstItem);
-            writer.BeginWriteKey(context.CurrentKeyForFromKeyTables);
-            writer.EndWriteKey(context.CurrentKeyForFromKeyTables);
-            await tomlTable.AcceptVisitorAsync(this, context).ConfigureAwait(false);
-            writer.EndWriteInlineTableItem(default, isFirstItem);
+            context.CurrentKeyForFromKeyTables = context.CurrentKeyForFromKeyTables.Clone();
+            context.CurrentKeyForFromKeyTables.LastKeyPart.NextKeyPart = tomlTable.FullName;
           }
-        }
-        else
-        {
-          foreach (var keyPair in tomlTable)
-          {
-            if (keyPair.Value is TomlTable nextTable && nextTable.Count > 0)
-            {
-              await writeFromKeyTable(nextTable).ConfigureAwait(false);
-              continue;
-            }
 
-            var key = context.CurrentKeyForFromKeyTables.Clone();
-            key.LastKeyPart.NextKeyPart = keyPair.Key;
+          if (tomlTable.Count == 0)
+          {
             if (context.UseAsync)
             {
-              await writer.BeginWriteInlineTableItemAsync(keyPair, isFirstItem).ConfigureAwait(false);
-              await writer.BeginWriteKeyAsync(key).ConfigureAwait(false);
-              await writer.EndWriteKeyAsync(key).ConfigureAwait(false);
-              await keyPair.Value.AcceptVisitorAsync(this, context).ConfigureAwait(false);
-              await writer.EndWriteInlineTableItemAsync(keyPair, isFirstItem).ConfigureAwait(false);
+              await writer.BeginWriteInlineTableItemAsync(default, isFirstItem).ConfigureAwait(false);
+              await writer.BeginWriteKeyAsync(context.CurrentKeyForFromKeyTables).ConfigureAwait(false);
+              await writer.EndWriteKeyAsync(context.CurrentKeyForFromKeyTables).ConfigureAwait(false);
+              await tomlTable.AcceptVisitorAsync(this, context).ConfigureAwait(false);
+              await writer.EndWriteInlineTableItemAsync(default, isFirstItem).ConfigureAwait(false);
             }
             else
             {
-              writer.BeginWriteInlineTableItem(keyPair, isFirstItem);
-              writer.BeginWriteKey(key);
-              writer.EndWriteKey(key);
-              await keyPair.Value.AcceptVisitorAsync(this, context).ConfigureAwait(false);
-              writer.EndWriteInlineTableItem(keyPair, isFirstItem);
+              writer.BeginWriteInlineTableItem(default, isFirstItem);
+              writer.BeginWriteKey(context.CurrentKeyForFromKeyTables);
+              writer.EndWriteKey(context.CurrentKeyForFromKeyTables);
+              await tomlTable.AcceptVisitorAsync(this, context).ConfigureAwait(false);
+              writer.EndWriteInlineTableItem(default, isFirstItem);
             }
-            isFirstItem = false;
           }
-        }
+          else
+          {
+            foreach (var keyPair in tomlTable)
+            {
+              if (keyPair.Value is TomlTable nextTable && nextTable.Count > 0)
+              {
+                await writeFromKeyTable(nextTable).ConfigureAwait(false);
+                continue;
+              }
 
-        context.CurrentKeyForFromKeyTables = oldContextKey;
+              var key = context.CurrentKeyForFromKeyTables.Clone();
+              key.LastKeyPart.NextKeyPart = keyPair.Key;
+              if (context.UseAsync)
+              {
+                await writer.BeginWriteInlineTableItemAsync(keyPair, isFirstItem).ConfigureAwait(false);
+                await writer.BeginWriteKeyAsync(key).ConfigureAwait(false);
+                await writer.EndWriteKeyAsync(key).ConfigureAwait(false);
+                await keyPair.Value.AcceptVisitorAsync(this, context).ConfigureAwait(false);
+                await writer.EndWriteInlineTableItemAsync(keyPair, isFirstItem).ConfigureAwait(false);
+              }
+              else
+              {
+                writer.BeginWriteInlineTableItem(keyPair, isFirstItem);
+                writer.BeginWriteKey(key);
+                writer.EndWriteKey(key);
+                await keyPair.Value.AcceptVisitorAsync(this, context).ConfigureAwait(false);
+                writer.EndWriteInlineTableItem(keyPair, isFirstItem);
+              }
+              isFirstItem = false;
+            }
+          }
+
+          context.CurrentKeyForFromKeyTables = oldContextKey;
+        }
+        finally
+        {
+          context.RecursionDepth--;
+          Debug.Assert(context.RecursionDepth >= 0);
+        }
       }
     }
 
