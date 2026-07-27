@@ -906,4 +906,56 @@ internal partial class TomlSerializerTest
 
     Assert.That(areTomlEquals);
   }
+
+  [Test]
+  public void SerializeToStringAsync_When_Parsed_DottedKey_Exceeds_MaxNestingDepth_Then_Throws_TomlSerializerException()
+  {
+    const int SEGMENT_COUNT = 300;
+    var segments = Enumerable.Range(0, SEGMENT_COUNT).Select(index => $"k{index}");
+    var toml = string.Join(".", segments) + " = 1";
+
+    var parsedToml = TomlSerializer.Deserialize(toml);
+
+    Assert.CatchAsync<TomlSerializerException>(async () => _ = await TomlSerializer.SerializeToStringAsync(parsedToml).ConfigureAwait(false));
+  }
+
+  [Test]
+  public async Task SerializeToStringAsync_When_Parsed_DottedKey_Is_Within_MaxNestingDepth_Then_RoundTrips_Successfully()
+  {
+    const int SEGMENT_COUNT = 25;
+    var segments = Enumerable.Range(0, SEGMENT_COUNT).Select(index => $"k{index}");
+    var toml = string.Join(".", segments) + " = 1";
+
+    var parsedToml = await TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false);
+    var serializedToml = await TomlSerializer.SerializeToStringAsync(parsedToml).ConfigureAwait(false);
+    var reparsedToml = await TomlSerializer.DeserializeAsync(serializedToml).ConfigureAwait(false);
+
+    var areEqual = await reparsedToml.DeepEqualsAsync(parsedToml).ConfigureAwait(false);
+    Assert.That(areEqual);
+  }
+
+  [Test]
+  public void DeepEqualsAsync_When_HandBuilt_Tables_Exceed_MaxNestingDepth_Then_Throws_TomlSerializerException()
+  {
+    TomlTable buildDeepTable()
+    {
+      var root = new TomlTable();
+      var current = root;
+      for (var index = 0; index < TomlSettings.Default.MaxNestingDepth + 10; index++)
+      {
+        var child = new TomlTable($"t{index}")
+        {
+          HasFromKeyDefinition = true
+        };
+        current.AddInternal(child);
+        current = child;
+      }
+      return root;
+    }
+
+    var left = buildDeepTable();
+    var right = buildDeepTable();
+
+    Assert.CatchAsync<TomlSerializerException>(async () => _ = await left.DeepEqualsAsync(right).ConfigureAwait(false));
+  }
 }
