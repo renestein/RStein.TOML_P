@@ -356,70 +356,84 @@ namespace RStein.TOML
     private static async ValueTask<TomlValue> parseValue<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
         where TInputReader : struct, IInputReader
     {
-      await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
-      throwIfEof(parserState);
-
-      switch (parserState.CurrentChar)
+      try
       {
-        case '"':
-          {
-            var (parsedString, tomlDataType) = await parseBasicStringOrBasicMlString(parserState, useAsync).ConfigureAwait(false);
-            return new TomlPrimitiveValue(parsedString, TomlValueType.String, tomlDataType);
-          }
-        case '\'':
-          {
-            var (parsedString, tomlDataType) = await parseLiteralStringOrMlLiteralString(parserState, useAsync).ConfigureAwait(false);
-            return new TomlPrimitiveValue(parsedString, TomlValueType.String, tomlDataType);
-          }
-        case '[':
-          {
-            var tomlArray = await parseArray(parserState, useAsync).ConfigureAwait(false);
-            return tomlArray;
-          }
-        case '{':
-          {
-            var tomlInlineTable = await parseInlineTable(parserState, useAsync).ConfigureAwait(false);
-            tomlInlineTable.HasFromInlineTableDefinition = true;
-            return tomlInlineTable;
-          }
-        case 't':
-          {
-            if (await matchLiteralValue(parserState, TomlPrimitiveValue.TRUE_VALUE_LITERAL, useAsync).ConfigureAwait(false))
+        parserState.CurrentNestingDepth++;
+        if (parserState.CurrentNestingDepth > parserState.TomlSettings.MaxNestingDepth)
+        {
+          throwTomlSerializerException(parserState, $"Maximum nesting depth ({parserState.TomlSettings.MaxNestingDepth}) exceeded.");
+        }
+
+        await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
+        throwIfEof(parserState);
+
+        switch (parserState.CurrentChar)
+        {
+          case '"':
             {
-              return new TomlPrimitiveValue(TomlPrimitiveValue.TRUE_VALUE_LITERAL, TomlValueType.Boolean);
+              var (parsedString, tomlDataType) = await parseBasicStringOrBasicMlString(parserState, useAsync).ConfigureAwait(false);
+              return new TomlPrimitiveValue(parsedString, TomlValueType.String, tomlDataType);
+            }
+          case '\'':
+            {
+              var (parsedString, tomlDataType) = await parseLiteralStringOrMlLiteralString(parserState, useAsync).ConfigureAwait(false);
+              return new TomlPrimitiveValue(parsedString, TomlValueType.String, tomlDataType);
+            }
+          case '[':
+            {
+              var tomlArray = await parseArray(parserState, useAsync).ConfigureAwait(false);
+              return tomlArray;
+            }
+          case '{':
+            {
+              var tomlInlineTable = await parseInlineTable(parserState, useAsync).ConfigureAwait(false);
+              tomlInlineTable.HasFromInlineTableDefinition = true;
+              return tomlInlineTable;
+            }
+          case 't':
+            {
+              if (await matchLiteralValue(parserState, TomlPrimitiveValue.TRUE_VALUE_LITERAL, useAsync).ConfigureAwait(false))
+              {
+                return new TomlPrimitiveValue(TomlPrimitiveValue.TRUE_VALUE_LITERAL, TomlValueType.Boolean);
+              }
+
+              throwTomlSerializerException(parserState, "The value format is not recognized.");
+              break;
+            }
+          case 'f':
+            if (await matchLiteralValue(parserState, TomlPrimitiveValue.FALSE_VALUE_LITERAL, useAsync).ConfigureAwait(false))
+            {
+              return new TomlPrimitiveValue(TomlPrimitiveValue.FALSE_VALUE_LITERAL, TomlValueType.Boolean);
             }
 
             throwTomlSerializerException(parserState, "The value format is not recognized.");
             break;
-          }
-        case 'f':
-          if (await matchLiteralValue(parserState, TomlPrimitiveValue.FALSE_VALUE_LITERAL, useAsync).ConfigureAwait(false))
-          {
-            return new TomlPrimitiveValue(TomlPrimitiveValue.FALSE_VALUE_LITERAL, TomlValueType.Boolean);
-          }
-
-          throwTomlSerializerException(parserState, "The value format is not recognized.");
-          break;
-      }
-
-      if (char.IsDigit(parserState.CurrentChar) || parserState.CurrentChar == '+' || parserState.CurrentChar == '-' ||
-          parserState.CurrentChar == 'i' || parserState.CurrentChar == 'n')
-      {
-        var (valueCandidateType, parsedValue, hasNumber) = await parseNumber(parserState, useAsync).ConfigureAwait(false);
-        if (hasNumber)
-        {
-          return new TomlPrimitiveValue(parsedValue, valueCandidateType.ToTomlValueType(), valueCandidateType);
         }
 
-        Debug.Assert((valueCandidateType & TomlDataType.AllDateTimeTypes) != 0);
-        var (subType, dateTimeValue) = await parseDateTime(parserState, parsedValue, useAsync).ConfigureAwait(false);
-        Debug.Assert(subType != TomlDataType.Unspecified);
-        return new TomlPrimitiveValue(dateTimeValue, TomlValueType.DateTime, subType);
-      }
+        if (char.IsDigit(parserState.CurrentChar) || parserState.CurrentChar == '+' || parserState.CurrentChar == '-' ||
+            parserState.CurrentChar == 'i' || parserState.CurrentChar == 'n')
+        {
+          var (valueCandidateType, parsedValue, hasNumber) = await parseNumber(parserState, useAsync).ConfigureAwait(false);
+          if (hasNumber)
+          {
+            return new TomlPrimitiveValue(parsedValue, valueCandidateType.ToTomlValueType(), valueCandidateType);
+          }
 
-      throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
-      
-      return null;
+          Debug.Assert((valueCandidateType & TomlDataType.AllDateTimeTypes) != 0);
+          var (subType, dateTimeValue) = await parseDateTime(parserState, parsedValue, useAsync).ConfigureAwait(false);
+          Debug.Assert(subType != TomlDataType.Unspecified);
+          return new TomlPrimitiveValue(dateTimeValue, TomlValueType.DateTime, subType);
+        }
+
+        throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+
+        return null;
+      }
+      finally
+      {
+        parserState.CurrentNestingDepth--;
+        Debug.Assert(parserState.CurrentNestingDepth >= 0);
+      }
     }
 
     private static async ValueTask<(TomlDataType subtype, string dateValue)> parseDateTime<TInputReader>(ParserState<TInputReader> parserState,
@@ -2392,6 +2406,12 @@ namespace RStein.TOML
     }
 
     public bool ParsingDottedKey
+    {
+      get;
+      set;
+    }
+
+    public int CurrentNestingDepth
     {
       get;
       set;
