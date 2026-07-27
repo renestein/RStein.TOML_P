@@ -55,5 +55,19 @@
       get;
       set;
     } = TomlVersion.Toml11;
+
+    /// <summary>
+    /// Gets or sets the maximum allowed nesting depth for arrays and inline tables during parsing.
+    /// </summary>
+    /// <remarks>
+    /// Parsing is implemented as a recursive descent, so excessively deep nesting in untrusted input
+    /// can exhaust the call stack. Exceeding this limit causes a <see cref="TomlSerializerException"/>
+    /// to be thrown instead. The default is 200.
+    /// </remarks>
+    public int MaxNestingDepth
+    {
+      get;
+      set;
+    } = 200;
   }
 }
