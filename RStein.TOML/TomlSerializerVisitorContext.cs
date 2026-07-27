@@ -3,7 +3,7 @@ using System.Threading;
 
 namespace RStein.TOML
 {
-  internal class TomlSerializerVisitorContext
+  internal class TomlSerializerVisitorContext : IRecursionDepthContext
   {
     private CancellationToken _cancellationToken;
 
@@ -47,5 +47,13 @@ namespace RStein.TOML
       get;
       set;
     } = true;
+
+    public int RecursionDepth
+    {
+      get;
+      set;
+    }
+
+    public int MaxRecursionDepth => TomlSettings.MaxNestingDepth;
   }
 }
