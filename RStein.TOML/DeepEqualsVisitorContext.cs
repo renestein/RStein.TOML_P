@@ -1,6 +1,6 @@
 ﻿namespace RStein.TOML
 {
-  internal class DeepEqualsVisitorContext
+  internal class DeepEqualsVisitorContext : IRecursionDepthContext
   {
     public TomlToken? OtherToken
     {
@@ -13,5 +13,13 @@
       get;
       set;
     } = true;
+
+    public int RecursionDepth
+    {
+      get;
+      set;
+    }
+
+    public int MaxRecursionDepth => TomlSettings.Default.MaxNestingDepth;
   }
 }
