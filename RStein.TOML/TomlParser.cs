@@ -1654,6 +1654,7 @@ namespace RStein.TOML
     {
       Debug.Assert(parserState.KeyParent != TomlTokenType.Undefined);
       TomlKey? tomlKey = null;
+      TomlKey? lastKeyPart = null;
       TomlTable? lastParsedTable = null;
       await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
       if (parserState.CurrentChar == '.')
@@ -1753,8 +1754,9 @@ namespace RStein.TOML
         }
         else
         {
-          tomlKey.LastKeyPart.NextKeyPart = newKeyPart;
+          lastKeyPart!.NextKeyPart = newKeyPart;
         }
+        lastKeyPart = newKeyPart;
         await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
       }
 
