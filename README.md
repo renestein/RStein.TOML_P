@@ -2,7 +2,7 @@
 [![RStein.TOML build](https://github.com/renestein/RStein.TOML_P/actions/workflows/dotnet.yml/badge.svg?branch=main)](https://github.com/renestein/RStein.TOML_P/actions/workflows/dotnet.yml)
 
 A simple asynchronous .NET library for parsing and generating [TOML](https://toml.io/) (Tom's Obvious Minimal Language) files.
-- ✅ Supports .NET 10, .NET 9, .NET Framework 4.8, .NET Standard 2.0.
+- ✅ Supports .NET 11 (Preview), .NET 10, .NET 9, .NET Framework 4.8, .NET Standard 2.0.
 - ✅ Tested against [TOML platform agnostic test suite](https://github.com/toml-lang/toml-test) (TOML 1.0.0 and 1.1.0 compliant).
 
 ## Features
