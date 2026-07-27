@@ -1308,4 +1308,36 @@ internal partial class TomlSerializerTest
     Assert.CatchAsync<TomlSerializerException>(async () => _ = await TomlSerializer.DeserializeAsync(toml, tomlSettings).ConfigureAwait(false));
   }
 
+  [Test]
+  public async Task Deserialize_When_DottedKey_Has_Many_Segments_Then_Returns_Expected_Data()
+  {
+    const int SEGMENT_COUNT = 2000;
+    var segments = Enumerable.Range(0, SEGMENT_COUNT).Select(index => $"k{index}").ToArray();
+    var toml = string.Join(".", segments) + " = 1";
+
+    var result = await TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false);
+
+    var currentTable = result;
+    for (var index = 0; index < SEGMENT_COUNT - 1; index++)
+    {
+      Assert.That(currentTable.ContainsKey(segments[index]));
+      currentTable = (TomlTable) currentTable[segments[index]];
+    }
+
+    Assert.That(currentTable.ContainsKey(segments[SEGMENT_COUNT - 1]));
+    Assert.That(((TomlPrimitiveValue) currentTable[segments[SEGMENT_COUNT - 1]]).Value, Is.EqualTo("1"));
+  }
+
+  [Test]
+  public async Task Deserialize_When_DottedKey_Has_Few_Segments_Then_Returns_Expected_Data()
+  {
+    const string TOML = "a.b.c = 1";
+
+    var result = await TomlSerializer.DeserializeAsync(TOML).ConfigureAwait(false);
+
+    var tableA = (TomlTable) result["a"];
+    var tableB = (TomlTable) tableA["b"];
+    Assert.That(((TomlPrimitiveValue) tableB["c"]).Value, Is.EqualTo("1"));
+  }
+
 }
