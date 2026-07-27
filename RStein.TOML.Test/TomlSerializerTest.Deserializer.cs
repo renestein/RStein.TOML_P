@@ -1268,4 +1268,44 @@ internal partial class TomlSerializerTest
     }
   }
 
+  [Test]
+  public void Deserialize_When_Array_Nesting_Exceeds_MaxNestingDepth_Then_Throws_TomlSerializerException()
+  {
+    var toml = "a = " + new string('[', 1000) + new string(']', 1000);
+
+    Assert.CatchAsync<TomlSerializerException>(async () => _ = await TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false));
+  }
+
+  [Test]
+  public void Deserialize_When_InlineTable_Nesting_Exceeds_MaxNestingDepth_Then_Throws_TomlSerializerException()
+  {
+    var open = string.Concat(Enumerable.Repeat("b = {", 999));
+    var toml = "a = {" + open + "1" + new string('}', 1000);
+
+    Assert.CatchAsync<TomlSerializerException>(async () => _ = await TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false));
+  }
+
+  [Test]
+  public async Task Deserialize_When_Array_Nesting_Is_Within_MaxNestingDepth_Then_Returns_Expected_Data()
+  {
+    const int NESTING_LEVEL = 25;
+    var toml = "a = " + new string('[', NESTING_LEVEL) + new string(']', NESTING_LEVEL);
+
+    var result = await TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false);
+
+    Assert.That(result.ContainsKey("a"));
+  }
+
+  [Test]
+  public void Deserialize_When_Array_Nesting_Exceeds_Custom_MaxNestingDepth_Then_Throws_TomlSerializerException()
+  {
+    var toml = "a = " + new string('[', 10) + new string(']', 10);
+    var tomlSettings = new TomlSettings
+    {
+      MaxNestingDepth = 5
+    };
+
+    Assert.CatchAsync<TomlSerializerException>(async () => _ = await TomlSerializer.DeserializeAsync(toml, tomlSettings).ConfigureAwait(false));
+  }
+
 }
