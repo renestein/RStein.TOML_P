@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
@@ -110,34 +111,55 @@ namespace RStein.TOML
         throw new ArgumentNullException(nameof(tomlVisitor));
       }
 
-      switch (TokenType)
+      var depthContext = context as IRecursionDepthContext;
+      try
       {
-        case TomlTokenType.Table:
-          await tomlVisitor.VisitAsync((TomlTable)this, context).ConfigureAwait(false);
-          break;
-        case TomlTokenType.KeyValue:
-          await tomlVisitor.VisitAsync((TomlKeyValue)this, context).ConfigureAwait(false);
-          break;
-        case TomlTokenType.Comment:
-          await tomlVisitor.VisitAsync((TomlComment)this, context).ConfigureAwait(false);
-          break;
-        case TomlTokenType.PrimitiveValue:
-          await tomlVisitor.VisitAsync((TomlPrimitiveValue)this, context).ConfigureAwait(false);
-          break;
-        case TomlTokenType.Array:
-          await tomlVisitor.VisitAsync((TomlArray)this, context).ConfigureAwait(false);
-          break;
-        case TomlTokenType.Key:
-          await tomlVisitor.VisitAsync((TomlKey)this, context).ConfigureAwait(false);
-          break;
-        case TomlTokenType.ArrayOfTables:
-          await tomlVisitor.VisitAsync((TomlArrayOfTables)this, context).ConfigureAwait(false);
-          break;
-        case TomlTokenType.InlineTable:
-          await tomlVisitor.VisitAsync((TomlInlineTable)this, context).ConfigureAwait(false);
-          break;
-        default:
-          throw new ArgumentOutOfRangeException();
+        if (depthContext != null)
+        {
+          depthContext.RecursionDepth++;
+          if (depthContext.RecursionDepth > depthContext.MaxRecursionDepth)
+          {
+            throw new TomlSerializerException($"Maximum nesting depth ({depthContext.MaxRecursionDepth}) exceeded.");
+          }
+        }
+
+        switch (TokenType)
+        {
+          case TomlTokenType.Table:
+            await tomlVisitor.VisitAsync((TomlTable)this, context).ConfigureAwait(false);
+            break;
+          case TomlTokenType.KeyValue:
+            await tomlVisitor.VisitAsync((TomlKeyValue)this, context).ConfigureAwait(false);
+            break;
+          case TomlTokenType.Comment:
+            await tomlVisitor.VisitAsync((TomlComment)this, context).ConfigureAwait(false);
+            break;
+          case TomlTokenType.PrimitiveValue:
+            await tomlVisitor.VisitAsync((TomlPrimitiveValue)this, context).ConfigureAwait(false);
+            break;
+          case TomlTokenType.Array:
+            await tomlVisitor.VisitAsync((TomlArray)this, context).ConfigureAwait(false);
+            break;
+          case TomlTokenType.Key:
+            await tomlVisitor.VisitAsync((TomlKey)this, context).ConfigureAwait(false);
+            break;
+          case TomlTokenType.ArrayOfTables:
+            await tomlVisitor.VisitAsync((TomlArrayOfTables)this, context).ConfigureAwait(false);
+            break;
+          case TomlTokenType.InlineTable:
+            await tomlVisitor.VisitAsync((TomlInlineTable)this, context).ConfigureAwait(false);
+            break;
+          default:
+            throw new ArgumentOutOfRangeException();
+        }
+      }
+      finally
+      {
+        if (depthContext != null)
+        {
+          depthContext.RecursionDepth--;
+          Debug.Assert(depthContext.RecursionDepth >= 0);
+        }
       }
     }
 
