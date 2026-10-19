@@ -12,6 +12,7 @@ A simple asynchronous .NET library for parsing and generating [TOML](https://tom
 - ✅ Memory-efficient low-allocation parser.
 - ✅ Asynchronous API with cancellation token.
 - ✅ Nullable-aware library with proper annotations.
+- ✅ `DateOnly` and `TimeOnly` (TOML local date and local time) supported on .NET 9 and later: `TomlPrimitiveValue` constructors, implicit conversion to `TomlToken` and explicit conversion back.
 
 
 ## Installation
