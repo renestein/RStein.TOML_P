@@ -245,22 +245,24 @@ internal class TomlPrimitiveValueTest
     Assert.Catch<InvalidCastException>(() => _ = (decimal?)tomlPrimitiveValue);
   }
 
-  [TestCase("+99", TomlValueType.Integer, TomlDataType.IntegerDec, 99.0)]
-  [TestCase("42", TomlValueType.Integer, TomlDataType.IntegerDec, 42.0)]
-  [TestCase("0", TomlValueType.Integer, TomlDataType.IntegerDec, 0.0)]
-  [TestCase("17", TomlValueType.Integer, TomlDataType.IntegerDec, 17.0)]
-  [TestCase("+1.0", TomlValueType.Float, TomlDataType.Float, 1.0)]
-  [TestCase("3.1415", TomlValueType.Float, TomlDataType.Float, 3.1415)]
-  [TestCase("-0.01", TomlValueType.Float, TomlDataType.Float, -0.01)]
-  [TestCase("0.0", TomlValueType.Float, TomlDataType.Float, 0.0)]
-  [TestCase("+0.0", TomlValueType.Float, TomlDataType.Float, 0.0)]
-  [TestCase("-0.0", TomlValueType.Float, TomlDataType.Float, 0.0)]
+  [TestCase("+99", TomlValueType.Integer, TomlDataType.IntegerDec, "99.0")]
+  [TestCase("42", TomlValueType.Integer, TomlDataType.IntegerDec, "42.0")]
+  [TestCase("0", TomlValueType.Integer, TomlDataType.IntegerDec, "0.0")]
+  [TestCase("17", TomlValueType.Integer, TomlDataType.IntegerDec, "17.0")]
+  [TestCase("+1.0", TomlValueType.Float, TomlDataType.Float, "1.0")]
+  [TestCase("3.1415", TomlValueType.Float, TomlDataType.Float, "3.1415")]
+  [TestCase("-0.01", TomlValueType.Float, TomlDataType.Float, "-0.01")]
+  [TestCase("0.0", TomlValueType.Float, TomlDataType.Float, "0.0")]
+  [TestCase("+0.0", TomlValueType.Float, TomlDataType.Float, "0.0")]
+  [TestCase("-0.0", TomlValueType.Float, TomlDataType.Float, "0.0")]
   public void NullableDecimalOperator_When_TomlValue_Is_Valid_Number_Then_Returns_Expected_Decimal(string rawValue,
                                                                                                    TomlValueType tomlValueType,
                                                                                                    TomlDataType tomlDataType,
-                                                                                                   decimal expectedNumber)
+                                                                                                   string expectedNumberText)
   {
     TomlPrimitiveValue tomlPrimitiveValue = new(rawValue, tomlValueType, tomlDataType);
+    // Parsed from text: converting a double test-case argument to decimal is runtime-dependent (rounds to 15 digits before .NET 11).
+    var expectedNumber = decimal.Parse(expectedNumberText, CultureInfo.InvariantCulture);
 
     var decimalNumber = (decimal?)tomlPrimitiveValue;
 
@@ -519,9 +521,9 @@ internal class TomlPrimitiveValueTest
   [TestCase("0.0", TomlValueType.Float, TomlDataType.Float, 0)]
   [TestCase("+0.0", TomlValueType.Float, TomlDataType.Float, 0)]
   [TestCase("-0.0", TomlValueType.Float, TomlDataType.Float, 0)]
-  [TestCase("inf", TomlValueType.Float, TomlDataType.Float, -1)]
-  [TestCase("+inf", TomlValueType.Float, TomlDataType.Float, -1)]
-  [TestCase("-inf", TomlValueType.Float, TomlDataType.Float, 0)]
+  [TestCase("inf", TomlValueType.Float, TomlDataType.Float, short.MaxValue)]
+  [TestCase("+inf", TomlValueType.Float, TomlDataType.Float, short.MaxValue)]
+  [TestCase("-inf", TomlValueType.Float, TomlDataType.Float, short.MinValue)]
   [TestCase("nan", TomlValueType.Float, TomlDataType.Float, 0)]
   [TestCase("+nan", TomlValueType.Float, TomlDataType.Float, 0)]
   [TestCase("-nan", TomlValueType.Float, TomlDataType.Float, 0)]
