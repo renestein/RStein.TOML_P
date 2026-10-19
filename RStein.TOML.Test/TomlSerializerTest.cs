@@ -1060,4 +1060,64 @@ internal partial class TomlSerializerTest
     Assert.That(await tomlTable.DeepEqualsAsync(deserialized).ConfigureAwait(false));
   }
 #endif
+
+  [TestCase("a \"b\" c", "a \"b\" c")]
+  [TestCase("a \"\"b\"\" c", "a \"\"b\"\" c")]
+  [TestCase("\"a\"", "\"a\"")]
+  [TestCase("a \"\"\" c", "a \"\"\\\" c")]
+  [TestCase("a \"\"\"\" c", "a \"\"\\\"\" c")]
+  [TestCase("a \"\"\"\"\"\" c", "a \"\"\\\"\"\"\\\" c")]
+  [TestCase("15: \"\"\"\"\"\"\"\"\"\"\"\"\"\"\".", "15: \"\"\\\"\"\"\\\"\"\"\\\"\"\"\\\"\"\"\\\".")]
+  public void SerializeToString_When_BasicMlString_Then_Escapes_Only_Third_Consecutive_Quote(string value, string expectedBody)
+  {
+    var tomlTable = new TomlTable {{"key", new TomlPrimitiveValue(value, TomlDataType.BasicMlString)}};
+
+    var toml = TomlSerializer.SerializeToString(tomlTable);
+
+    Assert.That(toml, Does.Contain($"\"\"\"{expectedBody}\"\"\""));
+  }
+
+  [TestCase("a \"b\" c")]
+  [TestCase("a \"\"b\"\" c")]
+  [TestCase("\"This,\" she said, \"is just a pointless statement.\"")]
+  [TestCase("\"\"start and end\"\"")]
+  [TestCase("a \"\"\" c")]
+  [TestCase("a \"\"\"\" c")]
+  [TestCase("a \"\"\"\"\"\" c")]
+  [TestCase("\"\"\"")]
+  [TestCase("end\"\"\"")]
+  [TestCase("quotes\"\"\"\"\"\"\"\"\"\"\"\"\"\"\".")]
+  [TestCase("line1\nsays \"hi\"\nand \"\"\"x\"\"\"\ttab \\ backslash")]
+  public async Task SerializeToStringAsync_When_BasicMlString_With_Quotes_Then_Round_Trips(string value)
+  {
+    var tomlTable = new TomlTable {{"key", new TomlPrimitiveValue(value, TomlDataType.BasicMlString)}};
+
+    var toml = await TomlSerializer.SerializeToStringAsync(tomlTable).ConfigureAwait(false);
+    var deserialized = await TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false);
+
+    Assert.That((string?)deserialized["key"], Is.EqualTo(value));
+  }
+
+  [TestCase("a \"b\" c")]
+  [TestCase("a \"\"\" c")]
+  [TestCase("\"\"end\"\"")]
+  public void SerializeToString_When_BasicMlString_With_Quotes_Then_Round_Trips(string value)
+  {
+    var tomlTable = new TomlTable {{"key", new TomlPrimitiveValue(value, TomlDataType.BasicMlString)}};
+
+    var toml = TomlSerializer.SerializeToString(tomlTable);
+    var deserialized = TomlSerializer.Deserialize(toml);
+
+    Assert.That((string?)deserialized["key"], Is.EqualTo(value));
+  }
+
+  [Test]
+  public void SerializeToString_When_BasicString_With_Quotes_Then_Still_Escapes_All_Quotes()
+  {
+    var tomlTable = new TomlTable {{"key", new TomlPrimitiveValue("a \"b\" c", TomlDataType.BasicString)}};
+
+    var toml = TomlSerializer.SerializeToString(tomlTable);
+
+    Assert.That(toml, Does.Contain("\"a \\\"b\\\" c\""));
+  }
 }
