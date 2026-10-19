@@ -193,6 +193,30 @@ namespace RStein.TOML
     {
     }
 
+#if NET9_0_OR_GREATER
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TomlPrimitiveValue"/> class with a date value.
+    /// </summary>
+    /// <param name="value">The date value (stored as TOML local date).</param>
+    public TomlPrimitiveValue(DateOnly value) : base(TomlTokenType.PrimitiveValue)
+    {
+      Type = TomlValueType.DateTime;
+      SubType = TomlDataType.LocalDate;
+      Value = value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TomlPrimitiveValue"/> class with a time value.
+    /// </summary>
+    /// <param name="value">The time value (stored as TOML local time).</param>
+    public TomlPrimitiveValue(TimeOnly value) : base(TomlTokenType.PrimitiveValue)
+    {
+      Type = TomlValueType.DateTime;
+      SubType = TomlDataType.LocalTime;
+      Value = value.ToString("HH:mm:ss.FFFFFFF", CultureInfo.InvariantCulture);
+    }
+#endif
+
     internal TomlPrimitiveValue(string? value,
                                 TomlValueType type,
                                 TomlDataType subType = TomlDataType.Unspecified) : base(TomlTokenType.PrimitiveValue)
