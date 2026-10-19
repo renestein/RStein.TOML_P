@@ -6,10 +6,10 @@ namespace RStein.TOML.Test;
 internal partial class TomlSerializerTest
 {
   [TestCase(null!)]
-  public void Deserialize_When_Toml_Argument_Is_Invalid_Then_Throws_ArgumentException(string invalidToml)
+  public async Task Deserialize_When_Toml_Argument_Is_Invalid_Then_Throws_ArgumentException(string invalidToml)
   {
 
-    Assert.CatchAsync<ArgumentException>(async () => _ = await TomlSerializer.DeserializeAsync(invalidToml).ConfigureAwait(false));
+    await Assert.CatchAsync<ArgumentException>(async () => _ = await TomlSerializer.DeserializeAsync(invalidToml).ConfigureAwait(false)).ConfigureAwait(false);
   }
 
   [Test]
@@ -32,26 +32,26 @@ internal partial class TomlSerializerTest
     var cts = new CancellationTokenSource();
     await cts.CancelAsync().ConfigureAwait(false);
 
-    Assert.CatchAsync<OperationCanceledException>(async () =>
+    await Assert.CatchAsync<OperationCanceledException>(async () =>
     {
       _ = await TomlSerializer.DeserializeAsync(TOML, cts.Token).ConfigureAwait(false);
-    });
+    }).ConfigureAwait(false);
   }
 
   [Test]
-  public void Deserialize_When_Key_Without_Value_Then_Throws_TomlSerializerException()
+  public async Task Deserialize_When_Key_Without_Value_Then_Throws_TomlSerializerException()
   {
     const string INVALID_TOML = "key = ";
 
-    Assert.CatchAsync<TomlSerializerException>(async () => _ = await TomlSerializer.DeserializeAsync(INVALID_TOML).ConfigureAwait(false));
+    await Assert.CatchAsync<TomlSerializerException>(async () => _ = await TomlSerializer.DeserializeAsync(INVALID_TOML).ConfigureAwait(false)).ConfigureAwait(false);
   }
 
   [Test]
-  public void Deserialize_When_More_KeyValue_In_One_Line_Then_Throws_TomlSerializerException()
+  public async Task Deserialize_When_More_KeyValue_In_One_Line_Then_Throws_TomlSerializerException()
   {
     const string INVALID_TOML = "first = \"Tom\" last = \"Preston-Werner\"";
 
-    Assert.CatchAsync<TomlSerializerException>(async () => _ = await TomlSerializer.DeserializeAsync(INVALID_TOML).ConfigureAwait(false));
+    await Assert.CatchAsync<TomlSerializerException>(async () => _ = await TomlSerializer.DeserializeAsync(INVALID_TOML).ConfigureAwait(false)).ConfigureAwait(false);
   }
 
   [Test]
@@ -165,10 +165,10 @@ internal partial class TomlSerializerTest
             name = "Tom"
             name = "Pradyun"
             """)]
-  public void Deserialize_When_Duplicate_Keys_Then_Throws_TomlSerializerException(string invalidToml)
+  public async Task Deserialize_When_Duplicate_Keys_Then_Throws_TomlSerializerException(string invalidToml)
   {
     
-    Assert.CatchAsync<TomlSerializerException>(async () => _ = await  TomlSerializer.DeserializeAsync(invalidToml).ConfigureAwait(false));
+    await Assert.CatchAsync<TomlSerializerException>(async () => _ = await  TomlSerializer.DeserializeAsync(invalidToml).ConfigureAwait(false)).ConfigureAwait(false);
   }
 
   [TestCase("""
@@ -176,10 +176,10 @@ internal partial class TomlSerializerTest
             spelling = "favorite"
             "spelling" = "favourite"
             """)]
-  public void Deserialize_When_Duplicate_Quoted_And_Unquoted_Keys_Then_Throws_TomlSerializerException(string invalidToml)
+  public async Task Deserialize_When_Duplicate_Quoted_And_Unquoted_Keys_Then_Throws_TomlSerializerException(string invalidToml)
   {
 
-    Assert.CatchAsync<TomlSerializerException>(async () => _ = await  TomlSerializer.DeserializeAsync(invalidToml).ConfigureAwait(false));
+    await Assert.CatchAsync<TomlSerializerException>(async () => _ = await  TomlSerializer.DeserializeAsync(invalidToml).ConfigureAwait(false)).ConfigureAwait(false);
   }
 
   [TestCase("""
@@ -213,9 +213,9 @@ internal partial class TomlSerializerTest
             # You can't turn an integer into a table.
             fruit.apple.smooth = true
             """)]
-  public void ParseAsyncWhen_Int_To_Table_Redefinition_Then_Throws_TomlSerializerException(string invalidToml)
+  public async Task ParseAsyncWhen_Int_To_Table_Redefinition_Then_Throws_TomlSerializerException(string invalidToml)
   {
-    Assert.CatchAsync<TomlSerializerException>(async () => _ = await  TomlSerializer.DeserializeAsync(invalidToml).ConfigureAwait(false));
+    await Assert.CatchAsync<TomlSerializerException>(async () => _ = await  TomlSerializer.DeserializeAsync(invalidToml).ConfigureAwait(false)).ConfigureAwait(false);
   }
 
   [TestCase("""
@@ -404,11 +404,11 @@ internal partial class TomlSerializerTest
   }
 
   [TestCase("apos15 = '''Here are fifteen apostrophes: ''''''''''''''''''")]
-  public void Deserialize_When_Literal_String_With_Many_Single_Quites_Then_Throws_TomlSerializerException(string toml)
+  public async Task Deserialize_When_Literal_String_With_Many_Single_Quites_Then_Throws_TomlSerializerException(string toml)
   {
     
 
-    Assert.CatchAsync<TomlSerializerException>(async () => _ = await  TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false));
+    await Assert.CatchAsync<TomlSerializerException>(async () => _ = await  TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false)).ConfigureAwait(false);
   }
 
   [TestCase("int1", "+99", "+99")]
@@ -471,9 +471,9 @@ internal partial class TomlSerializerTest
   [TestCase("intBinBad = 0b_11010110_")]
   [TestCase("intBinBad = 0b_11010110__")]
   [TestCase("intBinBad = 0b__11010110__")]
-  public void Deserialize_When_Bad_Int_Value_Then_Throws_TomlException(string toml)
+  public async Task Deserialize_When_Bad_Int_Value_Then_Throws_TomlException(string toml)
   {
-    Assert.CatchAsync<TomlSerializerException>(async () => _ = await TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false));
+    await Assert.CatchAsync<TomlSerializerException>(async () => _ = await TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false)).ConfigureAwait(false);
   }
 
   [TestCase("flt1", "+1.0", "+1.0")]
@@ -526,9 +526,9 @@ internal partial class TomlSerializerTest
   [TestCase("floatBad = naN")]
   [TestCase("floatBad = +naN")]
   [TestCase("floatBad = -naN")]
-  public void Deserialize_When_Bad_Float_Value_Then_Throws_TomlException(string toml)
+  public async Task Deserialize_When_Bad_Float_Value_Then_Throws_TomlException(string toml)
   {
-    Assert.CatchAsync<TomlSerializerException>(async () => _ = await  TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false));
+    await Assert.CatchAsync<TomlSerializerException>(async () => _ = await  TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false)).ConfigureAwait(false);
   }
 
   [TestCase("bool1", "true", "true")]
@@ -556,9 +556,9 @@ internal partial class TomlSerializerTest
   [TestCase("boolBad = notbool")]
   [TestCase("boolBad = fals")]
   [TestCase("boolBad = tru")]
-  public void Deserialize_When_Bad_Bool_Value_Then_Throws_TomlException(string toml)
+  public async Task Deserialize_When_Bad_Bool_Value_Then_Throws_TomlException(string toml)
   {
-    Assert.CatchAsync<TomlSerializerException>(async () => _ = await  TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false));
+    await Assert.CatchAsync<TomlSerializerException>(async () => _ = await  TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false)).ConfigureAwait(false);
   }
 
 
@@ -774,10 +774,10 @@ internal partial class TomlSerializerTest
             [fruit.apple]
             texture = "smooth"
             """)]
-  public void Deserialize_When_Invalid_Table_Definitions_Then_Throws_TomlSerializerException(string toml)
+  public async Task Deserialize_When_Invalid_Table_Definitions_Then_Throws_TomlSerializerException(string toml)
   {
     
-    Assert.CatchAsync<TomlSerializerException>(async () => _ = await  TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false));
+    await Assert.CatchAsync<TomlSerializerException>(async () => _ = await  TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false)).ConfigureAwait(false);
   }
 
   [TestCase("""
@@ -844,10 +844,10 @@ internal partial class TomlSerializerTest
   [TestCase("""
             animal = {,} #empty array with comma
             """)]
-  public void Deserialize_When_Invalid_Inline_Table_Definitions_In_Toml_1_0_Then_Throws_TomlSerializerException(string toml)
+  public async Task Deserialize_When_Invalid_Inline_Table_Definitions_In_Toml_1_0_Then_Throws_TomlSerializerException(string toml)
   {
     var toml10Settings = new TomlSettings(TomlVersion.Toml10);
-    Assert.CatchAsync<TomlSerializerException>(async () => _ = await  TomlSerializer.DeserializeAsync(toml, toml10Settings).ConfigureAwait(false));
+    await Assert.CatchAsync<TomlSerializerException>(async () => _ = await  TomlSerializer.DeserializeAsync(toml, toml10Settings).ConfigureAwait(false)).ConfigureAwait(false);
   }
 
   [TestCase("""
@@ -863,10 +863,10 @@ internal partial class TomlSerializerTest
   [TestCase("""
             animal = {,} #empty array with comma
             """)]
-  public void Deserialize_When_Invalid_Inline_Table_Definitions_In_Toml_1_1_Then_Throws_TomlSerializerException(string toml)
+  public async Task Deserialize_When_Invalid_Inline_Table_Definitions_In_Toml_1_1_Then_Throws_TomlSerializerException(string toml)
   {
     var toml11Settings = new TomlSettings(TomlVersion.Toml11);
-    Assert.CatchAsync<TomlSerializerException>(async () => _ = await  TomlSerializer.DeserializeAsync(toml, toml11Settings).ConfigureAwait(false));
+    await Assert.CatchAsync<TomlSerializerException>(async () => _ = await  TomlSerializer.DeserializeAsync(toml, toml11Settings).ConfigureAwait(false)).ConfigureAwait(false);
   }
 
   [TestCase("""
@@ -1077,9 +1077,9 @@ internal partial class TomlSerializerTest
             [[fruits.physical]]
             color = "green"
             """)]
-  public void Deserialize_When_Invalid_Array_Of_Tables_Then_Throws_TomlSerializerException(string toml)
+  public async Task Deserialize_When_Invalid_Array_Of_Tables_Then_Throws_TomlSerializerException(string toml)
   {
-    Assert.CatchAsync<TomlSerializerException>(async () => _ = await  TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false));
+    await Assert.CatchAsync<TomlSerializerException>(async () => _ = await  TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false)).ConfigureAwait(false);
   }
 
   [TestCase("""
@@ -1145,12 +1145,12 @@ internal partial class TomlSerializerTest
   [TestCase("ld1", "1979-05--1")]
   [TestCase("lt1", "07:32:")]
   [TestCase("lt2", "00:32:00.")]
-  public void Deserialize_When_DateTime_Value_Invalid_Then_Throws_TomlSerializerException(string key, string invalidValue)
+  public async Task Deserialize_When_DateTime_Value_Invalid_Then_Throws_TomlSerializerException(string key, string invalidValue)
    
   {
     string TOML = $"{key} = {invalidValue}";
     
-    Assert.CatchAsync<TomlSerializerException>(async () => {_ = await  TomlSerializer.DeserializeAsync(TOML).ConfigureAwait(false);});
+    await Assert.CatchAsync<TomlSerializerException>(async () => {_ = await  TomlSerializer.DeserializeAsync(TOML).ConfigureAwait(false);}).ConfigureAwait(false);
   }
 
   [Test]
@@ -1269,20 +1269,20 @@ internal partial class TomlSerializerTest
   }
 
   [Test]
-  public void Deserialize_When_Array_Nesting_Exceeds_MaxNestingDepth_Then_Throws_TomlSerializerException()
+  public async Task Deserialize_When_Array_Nesting_Exceeds_MaxNestingDepth_Then_Throws_TomlSerializerException()
   {
     var toml = "a = " + new string('[', 1000) + new string(']', 1000);
 
-    Assert.CatchAsync<TomlSerializerException>(async () => _ = await TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false));
+    await Assert.CatchAsync<TomlSerializerException>(async () => _ = await TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false)).ConfigureAwait(false);
   }
 
   [Test]
-  public void Deserialize_When_InlineTable_Nesting_Exceeds_MaxNestingDepth_Then_Throws_TomlSerializerException()
+  public async Task Deserialize_When_InlineTable_Nesting_Exceeds_MaxNestingDepth_Then_Throws_TomlSerializerException()
   {
     var open = string.Concat(Enumerable.Repeat("b = {", 999));
     var toml = "a = {" + open + "1" + new string('}', 1000);
 
-    Assert.CatchAsync<TomlSerializerException>(async () => _ = await TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false));
+    await Assert.CatchAsync<TomlSerializerException>(async () => _ = await TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false)).ConfigureAwait(false);
   }
 
   [Test]
@@ -1297,7 +1297,7 @@ internal partial class TomlSerializerTest
   }
 
   [Test]
-  public void Deserialize_When_Array_Nesting_Exceeds_Custom_MaxNestingDepth_Then_Throws_TomlSerializerException()
+  public async Task Deserialize_When_Array_Nesting_Exceeds_Custom_MaxNestingDepth_Then_Throws_TomlSerializerException()
   {
     var toml = "a = " + new string('[', 10) + new string(']', 10);
     var tomlSettings = new TomlSettings
@@ -1305,7 +1305,7 @@ internal partial class TomlSerializerTest
       MaxNestingDepth = 5
     };
 
-    Assert.CatchAsync<TomlSerializerException>(async () => _ = await TomlSerializer.DeserializeAsync(toml, tomlSettings).ConfigureAwait(false));
+    await Assert.CatchAsync<TomlSerializerException>(async () => _ = await TomlSerializer.DeserializeAsync(toml, tomlSettings).ConfigureAwait(false)).ConfigureAwait(false);
   }
 
   [Test]
