@@ -664,10 +664,10 @@ internal partial class TomlSerializerTest
     var cts = new CancellationTokenSource();
 
     await cts.CancelAsync().ConfigureAwait(false);
-    Assert.CatchAsync<OperationCanceledException>(async () =>
+    await Assert.CatchAsync<OperationCanceledException>(async () =>
     {
       await TomlSerializer.SerializeToStringAsync(tomlTable, cts.Token).ConfigureAwait(false);
-    });
+    }).ConfigureAwait(false);
   }
 
   [Test]
@@ -908,7 +908,7 @@ internal partial class TomlSerializerTest
   }
 
   [Test]
-  public void SerializeToStringAsync_When_Parsed_DottedKey_Exceeds_MaxNestingDepth_Then_Throws_TomlSerializerException()
+  public async Task SerializeToStringAsync_When_Parsed_DottedKey_Exceeds_MaxNestingDepth_Then_Throws_TomlSerializerException()
   {
     const int SEGMENT_COUNT = 300;
     var segments = Enumerable.Range(0, SEGMENT_COUNT).Select(index => $"k{index}");
@@ -916,7 +916,7 @@ internal partial class TomlSerializerTest
 
     var parsedToml = TomlSerializer.Deserialize(toml);
 
-    Assert.CatchAsync<TomlSerializerException>(async () => _ = await TomlSerializer.SerializeToStringAsync(parsedToml).ConfigureAwait(false));
+    await Assert.CatchAsync<TomlSerializerException>(async () => _ = await TomlSerializer.SerializeToStringAsync(parsedToml).ConfigureAwait(false)).ConfigureAwait(false);
   }
 
   [Test]
@@ -935,7 +935,7 @@ internal partial class TomlSerializerTest
   }
 
   [Test]
-  public void DeepEqualsAsync_When_HandBuilt_Tables_Exceed_MaxNestingDepth_Then_Throws_TomlSerializerException()
+  public async Task DeepEqualsAsync_When_HandBuilt_Tables_Exceed_MaxNestingDepth_Then_Throws_TomlSerializerException()
   {
     TomlTable buildDeepTable()
     {
@@ -956,6 +956,6 @@ internal partial class TomlSerializerTest
     var left = buildDeepTable();
     var right = buildDeepTable();
 
-    Assert.CatchAsync<TomlSerializerException>(async () => _ = await left.DeepEqualsAsync(right).ConfigureAwait(false));
+    await Assert.CatchAsync<TomlSerializerException>(async () => _ = await left.DeepEqualsAsync(right).ConfigureAwait(false)).ConfigureAwait(false);
   }
 }
