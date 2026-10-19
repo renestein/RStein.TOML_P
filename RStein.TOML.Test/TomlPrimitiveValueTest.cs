@@ -680,6 +680,11 @@ internal class TomlPrimitiveValueTest
   [TestCase("1979-05-27T07:32:00", TomlDataType.LocalDateTime, "1979-05-27T07:32:00")]
   [TestCase("1979-05-27", TomlDataType.LocalDate, "1979-05-27")]
   [TestCase("07:32:00", TomlDataType.LocalTime, "07:32:00")]
+  [TestCase("1979-05-27T13:05:09", TomlDataType.LocalDateTime, "1979-05-27T13:05:09")]
+  [TestCase("1979-05-27T00:05:09", TomlDataType.LocalDateTime, "1979-05-27T00:05:09")]
+  [TestCase("13:05:09", TomlDataType.LocalTime, "13:05:09")]
+  [TestCase("23:59:59", TomlDataType.LocalTime, "23:59:59")]
+  [TestCase("00:00:00", TomlDataType.LocalTime, "00:00:00")]
   public void Ctor_When_DateTime_Then_Returns_Expected_Value(string rawValue,
                                                                      TomlDataType tomlDataType,
                                                                      string expectedDateTime)
@@ -689,6 +694,28 @@ internal class TomlPrimitiveValueTest
     var secondTomlDateTimeValue = new TomlPrimitiveValue(dateTime, tomlDataType);
 
     Assert.That(secondTomlDateTimeValue.Value, Is.EqualTo(expectedDateTime));
+  }
+
+  [TestCase(13, 5, 9, "13:05:09")]
+  [TestCase(0, 0, 0, "00:00:00")]
+  [TestCase(12, 0, 0, "12:00:00")]
+  [TestCase(23, 59, 59, "23:59:59")]
+  public void Ctor_When_DateTime_And_LocalTime_Then_Uses_24_Hour_Clock(int hour, int minute, int second, string expectedValue)
+  {
+    var tomlValue = new TomlPrimitiveValue(new DateTime(1979, 5, 27, hour, minute, second), TomlDataType.LocalTime);
+
+    Assert.That(tomlValue.Value, Is.EqualTo(expectedValue));
+  }
+
+  [TestCase(13, 5, 9, "1979-05-27T13:05:09")]
+  [TestCase(0, 0, 0, "1979-05-27T00:00:00")]
+  [TestCase(12, 0, 0, "1979-05-27T12:00:00")]
+  [TestCase(23, 59, 59, "1979-05-27T23:59:59")]
+  public void Ctor_When_DateTime_And_LocalDateTime_Then_Uses_24_Hour_Clock(int hour, int minute, int second, string expectedValue)
+  {
+    var tomlValue = new TomlPrimitiveValue(new DateTime(1979, 5, 27, hour, minute, second), TomlDataType.LocalDateTime);
+
+    Assert.That(tomlValue.Value, Is.EqualTo(expectedValue));
   }
 
 #if NET9_0_OR_GREATER
