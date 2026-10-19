@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="build.bat" />
+    <File Path="run_tests.bat" />
+    <File Path="toml-test-v2.2.0-windows-amd64.exe" />
+  </Folder>
+  <Project Path="RStein.Toml.ExternalTest.Decoder/RStein.Toml.ExternalTest.Decoder.csproj" />
+  <Project Path="RStein.Toml.ExternalTest.Encoder/RStein.Toml.ExternalTest.Encoder.csproj" />
+  <Project Path="RStein.TOML.Test/RStein.TOML.Test.csproj" />
+  <Project Path="RStein.TOML/RStein.TOML.csproj" />
+</Solution>
