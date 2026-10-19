@@ -1153,6 +1153,76 @@ internal partial class TomlSerializerTest
     await Assert.CatchAsync<TomlSerializerException>(async () => {_ = await  TomlSerializer.DeserializeAsync(TOML).ConfigureAwait(false);}).ConfigureAwait(false);
   }
 
+#if NET9_0_OR_GREATER
+  [TestCase("ld = 1979-05-27", 1979, 5, 27)]
+  [TestCase("ld = 2000-02-29", 2000, 2, 29)]
+  [TestCase("ld = 1979-05-27T07:32:00", 1979, 5, 27)]
+  [TestCase("ld = 1979-05-27T07:32:00Z", 1979, 5, 27)]
+  [TestCase("ld = 1979-05-27T20:32:00-07:00", 1979, 5, 28)]
+  public async Task Deserialize_When_Date_Value_Then_DateOnly_Cast_Returns_Expected_Value(string toml,
+                                                                                         int year,
+                                                                                         int month,
+                                                                                         int day)
+  {
+    var result = await TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false);
+
+    Assert.That((DateOnly?)result["ld"], Is.EqualTo(new DateOnly(year, month, day)));
+  }
+
+  [TestCase("lt = 07:32:00", 7, 32, 0, 0)]
+  [TestCase("lt = 00:00:00", 0, 0, 0, 0)]
+  [TestCase("lt = 23:59:59", 23, 59, 59, 0)]
+  [TestCase("lt = 00:32:00.5", 0, 32, 0, 500)]
+  [TestCase("lt = 1979-05-27T07:32:00", 7, 32, 0, 0)]
+  [TestCase("lt = 1979-05-27T00:32:00-07:00", 7, 32, 0, 0)]
+  public async Task Deserialize_When_Time_Value_Then_TimeOnly_Cast_Returns_Expected_Value(string toml,
+                                                                                         int hour,
+                                                                                         int minute,
+                                                                                         int second,
+                                                                                         int millisecond)
+  {
+    var result = await TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false);
+
+    Assert.That((TimeOnly?)result["lt"], Is.EqualTo(new TimeOnly(hour, minute, second, millisecond)));
+  }
+
+  [Test]
+  public async Task Deserialize_When_Local_Date_Then_Equals_Value_Created_From_DateOnly()
+  {
+    var result = await TomlSerializer.DeserializeAsync("ld = 1979-05-27").ConfigureAwait(false);
+
+    Assert.That(result["ld"], Is.EqualTo(new TomlPrimitiveValue(new DateOnly(1979, 5, 27))));
+  }
+
+  [Test]
+  public async Task Deserialize_When_Local_Time_Then_Equals_Value_Created_From_TimeOnly()
+  {
+    var result = await TomlSerializer.DeserializeAsync("lt = 07:32:00").ConfigureAwait(false);
+
+    Assert.That(result["lt"], Is.EqualTo(new TomlPrimitiveValue(new TimeOnly(7, 32, 0))));
+  }
+
+  [TestCase("v = 07:32:00")]
+  [TestCase("v = \"1979-05-27\"")]
+  [TestCase("v = 42")]
+  public async Task Deserialize_When_Value_Is_Not_Convertible_Then_DateOnly_Cast_Throws_InvalidCastException(string toml)
+  {
+    var result = await TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false);
+
+    Assert.Catch<InvalidCastException>(() => _ = (DateOnly?)result["v"]);
+  }
+
+  [TestCase("v = 1979-05-27")]
+  [TestCase("v = \"07:32:00\"")]
+  [TestCase("v = true")]
+  public async Task Deserialize_When_Value_Is_Not_Convertible_Then_TimeOnly_Cast_Throws_InvalidCastException(string toml)
+  {
+    var result = await TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false);
+
+    Assert.Catch<InvalidCastException>(() => _ = (TimeOnly?)result["v"]);
+  }
+#endif
+
   [Test]
   public async Task DeserializeAsync_ReadmeMdTest1()
   {
