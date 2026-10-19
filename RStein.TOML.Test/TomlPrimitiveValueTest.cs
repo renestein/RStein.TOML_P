@@ -691,6 +691,148 @@ internal class TomlPrimitiveValueTest
     Assert.That(secondTomlDateTimeValue.Value, Is.EqualTo(expectedDateTime));
   }
 
+#if NET9_0_OR_GREATER
+  [Test]
+  public void Ctor_When_DateOnly_Then_Returns_Local_Date()
+  {
+    var tomlValue = new TomlPrimitiveValue(new DateOnly(1979, 5, 27));
+
+    Assert.That(tomlValue.Value, Is.EqualTo("1979-05-27"));
+    Assert.That(tomlValue.Type, Is.EqualTo(TomlValueType.DateTime));
+    Assert.That(tomlValue.SubType, Is.EqualTo(TomlDataType.LocalDate));
+    Assert.That(tomlValue, Is.EqualTo(new TomlPrimitiveValue("1979-05-27", TomlValueType.DateTime, TomlDataType.LocalDate)));
+  }
+
+  [TestCase(7, 32, 0, 0, "07:32:00")]
+  [TestCase(13, 5, 9, 0, "13:05:09")]
+  [TestCase(0, 0, 0, 0, "00:00:00")]
+  [TestCase(7, 32, 0, 500, "07:32:00.5")]
+  public void Ctor_When_TimeOnly_Then_Returns_Local_Time(int hour, int minute, int second, int millisecond, string expectedValue)
+  {
+    var tomlValue = new TomlPrimitiveValue(new TimeOnly(hour, minute, second, millisecond));
+
+    Assert.That(tomlValue.Value, Is.EqualTo(expectedValue));
+    Assert.That(tomlValue.Type, Is.EqualTo(TomlValueType.DateTime));
+    Assert.That(tomlValue.SubType, Is.EqualTo(TomlDataType.LocalTime));
+  }
+
+  [Test]
+  public void ImplicitOperator_When_DateOnly_Then_Returns_Primitive_Value()
+  {
+    TomlToken dateToken = new DateOnly(1979, 5, 27);
+
+    Assert.That(dateToken, Is.EqualTo(new TomlPrimitiveValue(new DateOnly(1979, 5, 27))));
+  }
+
+  [Test]
+  public void ImplicitOperator_When_TimeOnly_Then_Returns_Primitive_Value()
+  {
+    TomlToken timeToken = new TimeOnly(7, 32, 0);
+
+    Assert.That(timeToken, Is.EqualTo(new TomlPrimitiveValue(new TimeOnly(7, 32, 0))));
+  }
+
+  [Test]
+  public void ExplicitOperator_When_Local_Date_Then_Round_Trips()
+  {
+    var expectedDate = new DateOnly(1979, 5, 27);
+
+    Assert.That((DateOnly?)new TomlPrimitiveValue(expectedDate), Is.EqualTo(expectedDate));
+  }
+
+  [Test]
+  public void ExplicitOperator_When_Local_Time_Then_Round_Trips()
+  {
+    var expectedTime = new TimeOnly(13, 5, 9, 250);
+
+    Assert.That((TimeOnly?)new TomlPrimitiveValue(expectedTime), Is.EqualTo(expectedTime));
+  }
+
+  [TestCase("07:32:00", "07:32:00")]
+  [TestCase("07:32", "07:32:00")]
+  [TestCase("00:32:00.999999", "00:32:00.999999")]
+  public void ExplicitOperator_When_Parsed_Local_Time_Then_Returns_TimeOnly(string rawValue, string expectedTime)
+  {
+    var tomlValue = new TomlPrimitiveValue(rawValue, TomlValueType.DateTime, TomlDataType.LocalTime);
+
+    Assert.That(((TimeOnly?)tomlValue)!.Value.ToString("HH:mm:ss.FFFFFFF", CultureInfo.InvariantCulture), Is.EqualTo(expectedTime));
+  }
+
+  [Test]
+  public void DateOnlyOperator_When_Null_Then_Returns_Null()
+  {
+    TomlToken? nullToken = null;
+
+    Assert.That((DateOnly?)nullToken, Is.Null);
+  }
+
+  [Test]
+  public void TimeOnlyOperator_When_Null_Then_Returns_Null()
+  {
+    TomlToken? nullToken = null;
+
+    Assert.That((TimeOnly?)nullToken, Is.Null);
+  }
+
+  [TestCase("1979-05-27T07:32:00", TomlDataType.LocalDateTime, "1979-05-27")]
+  [TestCase("1979-05-27T07:32:00Z", TomlDataType.OffsetDateTime, "1979-05-27")]
+  [TestCase("1979-05-27T00:32:00-07:00", TomlDataType.OffsetDateTime, "1979-05-27")]
+  [TestCase("1979-05-27T20:32:00-07:00", TomlDataType.OffsetDateTime, "1979-05-28")]
+  public void DateOnlyOperator_When_DateTime_Then_Returns_Date_Part(string rawValue,
+                                                                   TomlDataType tomlDataType,
+                                                                   string expectedDate)
+  {
+    var tomlValue = new TomlPrimitiveValue(rawValue, TomlValueType.DateTime, tomlDataType);
+
+    Assert.That(((DateOnly?)tomlValue)!.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), Is.EqualTo(expectedDate));
+  }
+
+  [TestCase("1979-05-27T07:32:00", TomlDataType.LocalDateTime, "07:32:00")]
+  [TestCase("1979-05-27T07:32:00Z", TomlDataType.OffsetDateTime, "07:32:00")]
+  [TestCase("1979-05-27T00:32:00-07:00", TomlDataType.OffsetDateTime, "07:32:00")]
+  [TestCase("1979-05-27T20:32:00-07:00", TomlDataType.OffsetDateTime, "03:32:00")]
+  public void TimeOnlyOperator_When_DateTime_Then_Returns_Time_Part(string rawValue,
+                                                                   TomlDataType tomlDataType,
+                                                                   string expectedTime)
+  {
+    var tomlValue = new TomlPrimitiveValue(rawValue, TomlValueType.DateTime, tomlDataType);
+
+    Assert.That(((TimeOnly?)tomlValue)!.Value.ToString("HH:mm:ss", CultureInfo.InvariantCulture), Is.EqualTo(expectedTime));
+  }
+
+  [Test]
+  public void DateOnlyOperator_When_Local_Time_Then_Throws_InvalidCastException()
+  {
+    var localTime = new TomlPrimitiveValue(new TimeOnly(7, 32, 0));
+
+    Assert.Catch<InvalidCastException>(() => _ = (DateOnly?)localTime);
+  }
+
+  [Test]
+  public void TimeOnlyOperator_When_Local_Date_Then_Throws_InvalidCastException()
+  {
+    var localDate = new TomlPrimitiveValue(new DateOnly(1979, 5, 27));
+
+    Assert.Catch<InvalidCastException>(() => _ = (TimeOnly?)localDate);
+  }
+
+  [Test]
+  public void DateOnlyOperator_When_Not_DateTime_Then_Throws_InvalidCastException()
+  {
+    var stringValue = new TomlPrimitiveValue("1979-05-27", TomlValueType.String);
+
+    Assert.Catch<InvalidCastException>(() => _ = (DateOnly?)stringValue);
+  }
+
+  [Test]
+  public void TimeOnlyOperator_When_Not_DateTime_Then_Throws_InvalidCastException()
+  {
+    var stringValue = new TomlPrimitiveValue("07:32:00", TomlValueType.String);
+
+    Assert.Catch<InvalidCastException>(() => _ = (TimeOnly?)stringValue);
+  }
+#endif
+
   [TestCase("str", TomlDataType.BasicString, TomlDataType.BasicString)]
   [TestCase("str with \r\n new line", TomlDataType.BasicString, TomlDataType.BasicMlString)]
   [TestCase("str with \r\n new line", TomlDataType.BasicMlString, TomlDataType.BasicMlString)]
