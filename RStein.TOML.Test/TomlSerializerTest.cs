@@ -958,4 +958,106 @@ internal partial class TomlSerializerTest
 
     await Assert.CatchAsync<TomlSerializerException>(async () => _ = await left.DeepEqualsAsync(right).ConfigureAwait(false)).ConfigureAwait(false);
   }
+
+#if NET9_0_OR_GREATER
+  [Test]
+  public void SerializeToString_When_DateOnly_Then_Writes_Local_Date()
+  {
+    var tomlTable = new TomlTable {{"ld", new DateOnly(1979, 5, 27)}};
+
+    var toml = TomlSerializer.SerializeToString(tomlTable);
+
+    Assert.That(toml, Does.Contain("ld = 1979-05-27"));
+  }
+
+  [TestCase(7, 32, 0, 0, "lt = 07:32:00")]
+  [TestCase(13, 5, 9, 500, "lt = 13:05:09.5")]
+  public void SerializeToString_When_TimeOnly_Then_Writes_Local_Time(int hour, int minute, int second, int millisecond, string expectedLine)
+  {
+    var tomlTable = new TomlTable {{"lt", new TimeOnly(hour, minute, second, millisecond)}};
+
+    var toml = TomlSerializer.SerializeToString(tomlTable);
+
+    Assert.That(toml, Does.Contain(expectedLine));
+  }
+
+  [Test]
+  public void SerializeToString_When_DateOnly_Then_Local_Date_Is_Not_Quoted()
+  {
+    var tomlTable = new TomlTable {{"ld", new DateOnly(1979, 5, 27)}};
+
+    var toml = TomlSerializer.SerializeToString(tomlTable);
+
+    Assert.That(toml, Does.Not.Contain("\""));
+  }
+
+  [Test]
+  public async Task SerializeToStringAsync_When_DateOnly_Then_Round_Trips()
+  {
+    var expectedDate = new DateOnly(1979, 5, 27);
+    var tomlTable = new TomlTable {{"ld", new TomlPrimitiveValue(expectedDate)}};
+
+    var toml = await TomlSerializer.SerializeToStringAsync(tomlTable).ConfigureAwait(false);
+    var deserialized = await TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false);
+
+    Assert.That((DateOnly?)deserialized["ld"], Is.EqualTo(expectedDate));
+  }
+
+  [Test]
+  public async Task SerializeToStringAsync_When_TimeOnly_Then_Round_Trips()
+  {
+    var expectedTime = new TimeOnly(13, 5, 9, 250);
+    var tomlTable = new TomlTable {{"lt", new TomlPrimitiveValue(expectedTime)}};
+
+    var toml = await TomlSerializer.SerializeToStringAsync(tomlTable).ConfigureAwait(false);
+    var deserialized = await TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false);
+
+    Assert.That((TimeOnly?)deserialized["lt"], Is.EqualTo(expectedTime));
+  }
+
+  [Test]
+  public async Task SerializeToStringAsync_When_Array_Of_DateOnly_Then_Round_Trips()
+  {
+    var tomlTable = new TomlTable {{"arr", new TomlArray {new DateOnly(2000, 1, 1), new DateOnly(2000, 12, 31)}}};
+
+    var toml = await TomlSerializer.SerializeToStringAsync(tomlTable).ConfigureAwait(false);
+    var deserialized = await TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false);
+
+    Assert.That((DateOnly?)((TomlArray)deserialized["arr"])[1], Is.EqualTo(new DateOnly(2000, 12, 31)));
+  }
+
+  [Test]
+  public async Task SerializeToStringAsync_When_Nested_Table_With_TimeOnly_Then_Round_Trips()
+  {
+    var tomlTable = new TomlTable
+    {
+      {
+        "nested", new TomlTable(new TomlKey("nested", TomlKeyType.SimpleUnquoted))
+        {
+          ["time"] = new TimeOnly(0, 0, 0)
+        }
+      }
+    };
+
+    var toml = await TomlSerializer.SerializeToStringAsync(tomlTable).ConfigureAwait(false);
+    var deserialized = await TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false);
+
+    Assert.That((TimeOnly?)((TomlTable)deserialized["nested"])["time"], Is.EqualTo(new TimeOnly(0, 0, 0)));
+  }
+
+  [Test]
+  public async Task SerializeToStringAsync_When_DateOnly_And_TimeOnly_Then_Deserialized_Table_Is_Deep_Equal()
+  {
+    var tomlTable = new TomlTable
+    {
+      {"ld", new DateOnly(1979, 5, 27)},
+      {"lt", new TimeOnly(13, 5, 9, 250)}
+    };
+
+    var toml = await TomlSerializer.SerializeToStringAsync(tomlTable).ConfigureAwait(false);
+    var deserialized = await TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false);
+
+    Assert.That(await tomlTable.DeepEqualsAsync(deserialized).ConfigureAwait(false));
+  }
+#endif
 }
