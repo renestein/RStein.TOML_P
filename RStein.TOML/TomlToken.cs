@@ -986,6 +986,106 @@ namespace RStein.TOML
 
       return XmlConvert.ToDateTime(toParseValue, XmlDateTimeSerializationMode.Utc);
     }
+
+#if NET9_0_OR_GREATER
+    /// <summary>
+    /// Explicitly converts a <see cref="TomlToken"/> instance to a nullable <see cref="DateOnly"/>.
+    /// </summary>
+    /// <param name="tomlToken">
+    /// The <see cref="TomlToken"/> to convert. Can be <see langword="null"/>.
+    /// </param>
+    /// <returns>
+    /// A <see cref="DateOnly"/> containing the value of <paramref name="tomlToken"/>,
+    /// or <see langword="null"/> if <paramref name="tomlToken"/> is <see langword="null"/>.
+    /// </returns>
+    /// <remarks>
+    /// Local date, local date-time and offset date-time values can be converted.
+    /// For an offset date-time the date part is taken after normalization to UTC
+    /// (the same behavior as the explicit conversion to <see cref="DateTime"/>).
+    /// </remarks>
+    /// <exception cref="InvalidCastException">
+    /// Thrown if <paramref name="tomlToken"/> does not represent a TOML local date, local date-time or offset date-time.
+    /// </exception>
+    public static explicit operator DateOnly?(TomlToken? tomlToken)
+    {
+      if (tomlToken == null)
+      {
+        return null;
+      }
+
+      if (!(tomlToken is TomlPrimitiveValue primitiveValue))
+      {
+        throw new InvalidCastException(CAST_NOT_SUPPORTED_ERROR);
+      }
+
+      if (primitiveValue.Type != TomlValueType.DateTime)
+      {
+        throw new InvalidCastException();
+      }
+
+      switch (primitiveValue.SubType)
+      {
+        case TomlDataType.LocalDate:
+          return DateOnly.TryParseExact(primitiveValue.Value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dateOnly)
+            ? dateOnly
+            : throw new InvalidCastException();
+        case TomlDataType.LocalDateTime:
+        case TomlDataType.OffsetDateTime:
+          return DateOnly.FromDateTime(((DateTime?) primitiveValue)!.Value);
+        default:
+          throw new InvalidCastException();
+      }
+    }
+
+    /// <summary>
+    /// Explicitly converts a <see cref="TomlToken"/> instance to a nullable <see cref="TimeOnly"/>.
+    /// </summary>
+    /// <param name="tomlToken">
+    /// The <see cref="TomlToken"/> to convert. Can be <see langword="null"/>.
+    /// </param>
+    /// <returns>
+    /// A <see cref="TimeOnly"/> containing the value of <paramref name="tomlToken"/>,
+    /// or <see langword="null"/> if <paramref name="tomlToken"/> is <see langword="null"/>.
+    /// </returns>
+    /// <remarks>
+    /// Local time, local date-time and offset date-time values can be converted.
+    /// For an offset date-time the time part is taken after normalization to UTC
+    /// (the same behavior as the explicit conversion to <see cref="DateTime"/>).
+    /// </remarks>
+    /// <exception cref="InvalidCastException">
+    /// Thrown if <paramref name="tomlToken"/> does not represent a TOML local time, local date-time or offset date-time.
+    /// </exception>
+    public static explicit operator TimeOnly?(TomlToken? tomlToken)
+    {
+      if (tomlToken == null)
+      {
+        return null;
+      }
+
+      if (!(tomlToken is TomlPrimitiveValue primitiveValue))
+      {
+        throw new InvalidCastException(CAST_NOT_SUPPORTED_ERROR);
+      }
+
+      if (primitiveValue.Type != TomlValueType.DateTime)
+      {
+        throw new InvalidCastException();
+      }
+
+      switch (primitiveValue.SubType)
+      {
+        case TomlDataType.LocalTime:
+          return TimeOnly.TryParse(primitiveValue.Value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var timeOnly)
+            ? timeOnly
+            : throw new InvalidCastException();
+        case TomlDataType.LocalDateTime:
+        case TomlDataType.OffsetDateTime:
+          return TimeOnly.FromDateTime(((DateTime?) primitiveValue)!.Value);
+        default:
+          throw new InvalidCastException();
+      }
+    }
+#endif
     #endregion
 
     #region Explicit conversions
@@ -1148,6 +1248,36 @@ namespace RStein.TOML
     {
       return new TomlPrimitiveValue(value);
     }
+
+#if NET9_0_OR_GREATER
+    ///<summary>
+    /// Implicitly converts a <see cref="DateOnly"/> value to a <see cref="TomlToken"/> instance.
+    /// </summary>
+    /// <param name="value">
+    /// The <see cref="DateOnly"/> value to convert.
+    /// </param>
+    /// <returns>
+    /// A <see cref="TomlPrimitiveValue"/> representing <paramref name="value"/> as a TOML local date.
+    /// </returns>
+    public static implicit operator TomlToken(DateOnly value)
+    {
+      return new TomlPrimitiveValue(value);
+    }
+
+    ///<summary>
+    /// Implicitly converts a <see cref="TimeOnly"/> value to a <see cref="TomlToken"/> instance.
+    /// </summary>
+    /// <param name="value">
+    /// The <see cref="TimeOnly"/> value to convert.
+    /// </param>
+    /// <returns>
+    /// A <see cref="TomlPrimitiveValue"/> representing <paramref name="value"/> as a TOML local time.
+    /// </returns>
+    public static implicit operator TomlToken(TimeOnly value)
+    {
+      return new TomlPrimitiveValue(value);
+    }
+#endif
 
     #endregion
 
