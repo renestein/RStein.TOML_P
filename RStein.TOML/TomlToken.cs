@@ -24,6 +24,49 @@ namespace RStein.TOML
     private const string DOES_NOT_CONTAIN_CHILDREN_ERROR = "This TomlToken does not contain  children.";
     private const string CAST_NOT_SUPPORTED_ERROR = "Cast not supported.";
 
+    // Unchecked float -> short/ushort casts of out-of-range values are runtime-dependent, so saturate explicitly.
+    private static short? saturateToInt16(float? value)
+    {
+      if (!value.HasValue)
+      {
+        return null;
+      }
+
+      var number = value.Value;
+      if (float.IsNaN(number))
+      {
+        return 0;
+      }
+
+      if (number >= short.MaxValue)
+      {
+        return short.MaxValue;
+      }
+
+      return number <= short.MinValue ? short.MinValue : (short)number;
+    }
+
+    private static ushort? saturateToUInt16(float? value)
+    {
+      if (!value.HasValue)
+      {
+        return null;
+      }
+
+      var number = value.Value;
+      if (float.IsNaN(number))
+      {
+        return 0;
+      }
+
+      if (number >= ushort.MaxValue)
+      {
+        return ushort.MaxValue;
+      }
+
+      return number <= ushort.MinValue ? ushort.MinValue : (ushort)number;
+    }
+
     /// <summary>
     /// Initializes a new instance of the <see cref="TomlToken"/>.
     /// </summary>
@@ -353,7 +396,7 @@ namespace RStein.TOML
           }
         case TomlValueType.Float:
           {
-            return (short?)(float?)tomlPrimitiveValue;
+            return saturateToInt16((float?)tomlPrimitiveValue);
           }
         case TomlValueType.Boolean:
           {
@@ -412,7 +455,7 @@ namespace RStein.TOML
           }
         case TomlValueType.Float:
           {
-            return (ushort?)(float?)tomlPrimitiveValue;
+            return saturateToUInt16((float?)tomlPrimitiveValue);
           }
         case TomlValueType.Boolean:
           {
