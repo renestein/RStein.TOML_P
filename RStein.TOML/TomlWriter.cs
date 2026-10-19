@@ -556,7 +556,7 @@ namespace RStein.TOML
           await _textWriter.WriteAsync($"\"{stringValue.ToEscapedTomlString()}\"").ConfigureAwait(false);
           break;
         case TomlDataType.BasicMlString:
-          await _textWriter.WriteAsync($"\"\"\"{stringValue.ToEscapedTomlString()}\"\"\"").ConfigureAwait(false);
+          await _textWriter.WriteAsync($"\"\"\"{stringValue.ToEscapedTomlMlString()}\"\"\"").ConfigureAwait(false);
           break;
         case TomlDataType.LiteralString:
           await _textWriter.WriteAsync($"'{stringValue}'").ConfigureAwait(false);
@@ -659,7 +659,7 @@ namespace RStein.TOML
           _textWriter.Write($"\"{stringValue.ToEscapedTomlString()}\"");
           break;
         case TomlDataType.BasicMlString:
-          _textWriter.Write($"\"\"\"{stringValue.ToEscapedTomlString()}\"\"\"");
+          _textWriter.Write($"\"\"\"{stringValue.ToEscapedTomlMlString()}\"\"\"");
           break;
         case TomlDataType.LiteralString:
           _textWriter.Write($"'{stringValue}'");
