@@ -1410,4 +1410,100 @@ internal partial class TomlSerializerTest
     Assert.That(((TomlPrimitiveValue) tableB["c"]).Value, Is.EqualTo("1"));
   }
 
+  // The error tests below check what a user needs from a parse error (where it happened, what input was wrong),
+  // not the exact wording, so messages can be improved without touching the tests.
+
+  [TestCase("key = $", "line 1")]
+  [TestCase("a = 1\nb = 2\nkey = $", "line 3")]
+  [TestCase("a = 1\r\nb = 2\r\nkey = $", "line 3")]
+  [TestCase("a = \"\"\"x\ny\n\"\"\"\nkey = $", "line 4")]
+  [TestCase("a = '''x\ny\n'''\nkey = $", "line 4")]
+  [TestCase("# comment\n\nkey = $", "line 3")]
+  public async Task Deserialize_When_Invalid_Value_Then_Error_Contains_Correct_Line(string invalidToml, string expectedLine)
+  {
+    var exception = await getParseExceptionAsync(invalidToml).ConfigureAwait(false);
+
+    Assert.That(exception.Message, Does.Contain(expectedLine));
+  }
+
+  [Test]
+  public async Task Deserialize_When_Error_Follows_Unicode_Escape_Then_Error_Contains_Correct_Column()
+  {
+    //Column of the bad escape character 'q'.
+    const string INVALID_TOML = "s = \"\\u0041\\q\"";
+
+    var exception = await getParseExceptionAsync(INVALID_TOML).ConfigureAwait(false);
+
+    Assert.That(exception.Message, Does.Contain("column 13"));
+  }
+
+  [TestCase("a = 1\nb = \"abc", "line 2")]
+  [TestCase("a = 1\nb = 'abc", "line 2")]
+  [TestCase("a = 1\nb = \"\"\"abc\ndef", "line 2")]
+  [TestCase("a = 1\nb = '''abc\ndef", "line 2")]
+  [TestCase("a = 1\nb = [1, 2,\n3", "line 2")]
+  [TestCase("a = 1\nb = { c = 1", "line 2")]
+  [TestCase("a = 1\n[table", "line 2")]
+  public async Task Deserialize_When_Construct_Is_Not_Closed_Then_Error_Contains_Line_Where_It_Started(string invalidToml, string expectedLine)
+  {
+    var exception = await getParseExceptionAsync(invalidToml).ConfigureAwait(false);
+
+    Assert.That(exception.Message, Does.Contain(expectedLine));
+  }
+
+  [TestCase("date = 1979-13-01", "13")]
+  [TestCase("date = 2021-02-30", "2021-02-30")]
+  [TestCase("time = 07:61:00", "61")]
+  [TestCase("number = 1__0", "_")]
+  public async Task Deserialize_When_Value_Is_Invalid_Then_Error_Names_Offending_Input(string invalidToml, string expectedText)
+  {
+    var exception = await getParseExceptionAsync(invalidToml).ConfigureAwait(false);
+
+    Assert.That(exception.Message, Does.Contain(expectedText));
+  }
+
+  [Test]
+  public async Task Deserialize_When_Unicode_Escape_Has_Invalid_Digits_Then_Error_Names_Escape_And_Is_Not_Wrapped()
+  {
+    const string INVALID_TOML = "s = \"\\uZZZZ\"";
+
+    var exception = await getParseExceptionAsync(INVALID_TOML).ConfigureAwait(false);
+
+    Assert.That(exception.Message, Does.Contain("ZZZZ"));
+    Assert.That(exception.InnerException, Is.Null);
+  }
+
+  [Test]
+  public async Task Deserialize_When_Array_Of_Tables_Header_Ends_The_Document_Then_Succeeds()
+  {
+    var result = await TomlSerializer.DeserializeAsync("[[tables]]").ConfigureAwait(false);
+
+    Assert.That(result.ContainsKey("tables"));
+  }
+
+  [Test]
+  public async Task Deserialize_When_Invalid_Value_Then_Exception_Has_Line_And_Column()
+  {
+    const string INVALID_TOML = "a = 1\nkey = $";
+
+    var exception = await getParseExceptionAsync(INVALID_TOML).ConfigureAwait(false);
+
+    Assert.That(exception.Line, Is.EqualTo(2));
+    Assert.That(exception.Column, Is.EqualTo(7));
+  }
+
+  private static async Task<TomlSerializerException> getParseExceptionAsync(string toml)
+  {
+    try
+    {
+      _ = await TomlSerializer.DeserializeAsync(toml).ConfigureAwait(false);
+    }
+    catch (TomlSerializerException e)
+    {
+      return e;
+    }
+
+    Assert.Fail("Expected a TomlSerializerException.");
+    return null!;
+  }
 }
