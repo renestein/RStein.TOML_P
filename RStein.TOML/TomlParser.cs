@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -12,17 +13,15 @@ namespace RStein.TOML
 {
   internal static class TomlParser
   {
-    private const string UNEXPECTED_END_OF_TOML_DOCUMENT_ERROR = "Unexpected end of TOML document.";
-    private const string UNEXPECTED_END_OF_ESCAPED_CHAR_ERROR = "Unexpected end of escaped char.";
+    private const string UNEXPECTED_END_OF_TOML_DOCUMENT_ERROR = "Unexpected end of TOML document";
     private const int UNLIMITED = -1;
-    private const string INVALID_TOML_VALUE_ERROR = "Invalid TOML value.";
-    private const string INVALID_TOML_ARRAY_DEFINITION_ERROR = "Invalid TOML array definition.";
-    private const string INVALID_TOML_INLINE_TABLE_DEFINITION_ERROR = "Invalid TOML inline table definition.";
-    private const string INVALID_TABLE_DEFINITION_ERROR = "Invalid table definition.";
-    private const string INVALID_ARRAY_TABLES_DEFINITION_ERROR = "Invalid array of tables definition.";
+    private const string INVALID_DATE_ERROR = "Invalid date (expected format YYYY-MM-DD).";
+    private const string INVALID_TIME_ERROR = "Invalid time (expected format HH:MM:SS).";
+    private const string INVALID_TIME_OFFSET_ERROR = "Invalid time zone offset (expected 'Z', '+HH:MM' or '-HH:MM').";
+    private const string INVALID_FRACTIONAL_SECONDS_ERROR = "Invalid fractional seconds.";
+    private const string INVALID_ARRAY_ERROR = "Invalid array.";
+    private const string INVALID_INLINE_TABLE_ERROR = "Invalid inline table.";
     private const string PARSING_FAILED_GENERAL_ERROR = "Parsing failed. See inner exception for details.";
-    private const string INVALID_BASIC_ML_STRING_DEFINITION_ERROR = "Invalid basic string on";
-    private const string INVALID_LITERAL_ML_STRING_DEFINITION_ERROR = "Invalid literal string definition";
     private const int MAX_SINGLE_QUOTES_IN_LITERAL_ML_STRING = 2;
     private const int NUMBER_OF_OPENING_CLOSE_SINGLE_QUOTES_IN_LITERAL_ML_STRING = 3;
     private const string WINDOWS_NEW_LINE = "\r\n";
@@ -204,49 +203,48 @@ namespace RStein.TOML
         parserState.KeyParent = TomlTokenType.Array;
         if (parserState.CurrentChar != '[')
         {
-          throwTomlSerializerException(parserState, INVALID_ARRAY_TABLES_DEFINITION_ERROR);
+          throwTomlSerializerException(parserState, $"Invalid array of tables header: expected '[[', but found {describeChar(parserState.CurrentChar)}.");
         }
 
         await advance(parserState, useAsync).ConfigureAwait(false);
-        throwIfEof(parserState);
+        throwIfEof(parserState, "'[[' to start the array of tables header");
         if (parserState.CurrentChar != '[')
         {
-          throwTomlSerializerException(parserState, INVALID_ARRAY_TABLES_DEFINITION_ERROR);
+          throwTomlSerializerException(parserState, $"Invalid array of tables header: expected '[[', but found '[' followed by {describeChar(parserState.CurrentChar)}.");
         }
 
         await advance(parserState, useAsync).ConfigureAwait(false);
-        throwIfEof(parserState);
+        throwIfEof(parserState, "a table name");
 
         var (key, parentTable) = await parseKey(parserState, useAsync).ConfigureAwait(false);
         var lastKey = key.LastKeyPart;
         await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
         if (parserState.CurrentChar != ']')
         {
-          throwTomlSerializerException(parserState, INVALID_TABLE_DEFINITION_ERROR);
+          throwTomlSerializerException(parserState, $"Invalid array of tables header: expected ']]' to close the header, but found {describeCurrentChar(parserState)}.");
         }
 
         await advance(parserState, useAsync).ConfigureAwait(false);
-        throwIfEof(parserState);
+        throwIfEof(parserState, "']]' to close the array of tables header");
         if (parserState.CurrentChar != ']')
         {
-          throwTomlSerializerException(parserState, INVALID_ARRAY_TABLES_DEFINITION_ERROR);
+          throwTomlSerializerException(parserState, $"Invalid array of tables header: expected ']]' to close the header, but found ']' followed by {describeChar(parserState.CurrentChar)}.");
         }
 
 
         var peekChar = peek(parserState);
-        Debug.Assert(peekChar != null);
-        if (isWhiteSpace(peekChar.Value))
+        if (peekChar != null && isWhiteSpace(peekChar.Value))
         {
           await advance(parserState, useAsync).ConfigureAwait(false);
           await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
-          peekChar = parserState.CurrentChar;
+          peekChar = parserState.Eof ? (char?) null : parserState.CurrentChar;
         }
 
-        if (!parserState.Eof)
+        if (!parserState.Eof && peekChar != null)
         {
           if (peekChar != '#' && !isNewLineChar(peekChar.Value))
           {
-            throwTomlSerializerException(parserState, INVALID_ARRAY_TABLES_DEFINITION_ERROR);
+            throwTomlSerializerException(parserState, $"Expected end of line or comment after the array of tables header, but found {describeChar(peekChar.Value)}.");
           }
 
           if (peekChar == '#')
@@ -259,7 +257,7 @@ namespace RStein.TOML
         {
           if (token.TokenType != TomlTokenType.ArrayOfTables)
           {
-            throwTomlSerializerException(parserState, $"Token '{key}' exists and has type '{token.TokenType}'. Expected token type: '{nameof(TomlTokenType.ArrayOfTables)}'");
+            throwTomlSerializerException(parserState, $"Cannot define array of tables '{key}': the key already exists as '{token.TokenType}'.");
           }
         }
         else
@@ -305,28 +303,28 @@ namespace RStein.TOML
 
         if (key.IsDottedKey && table.HasTopLevelDefinition)
         {
-          throwTomlSerializerException(parserState, $"Appending key '{key.RawKey}' to explicitly defined '{table.FullName}' is not allowed.");
+          throwTomlSerializerException(parserState, $"Cannot add key '{key}' to table '{table.FullName}': the table was explicitly defined with a [header] and cannot be extended with dotted keys.");
         }
 
         var lastPartKey = key.LastKeyPart;
         if (table.ContainsKey(lastPartKey.RawKey))
         {
-          throwTomlSerializerException(parserState, $"Key '{key.LastKeyPart.RawKey}' already exists. Redefinition is not allowed.");
+          throwTomlSerializerException(parserState, $"Key '{key}' is already defined. Redefinition is not allowed.");
         }
 
         await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
-        throwIfEof(parserState);
+        throwIfEof(parserState, "'=' after the key");
 
         if (parserState.CurrentChar != '=')
         {
-          throwTomlSerializerException(parserState, $"Expected '=' in key-value definition. Found '{parserState.CurrentChar}'.");
+          throwTomlSerializerException(parserState, $"Expected '=' after key '{key}', but found {describeChar(parserState.CurrentChar)}.");
         }
 
         await advance(parserState, useAsync).ConfigureAwait(false);
         var value = await parseValue(parserState, useAsync).ConfigureAwait(false);
         if (table.IsArrayOfTablesMember && key.IsDottedKey && value.TokenType == TomlTokenType.PrimitiveValue)
         {
-          throwTomlSerializerException(parserState, $"Key '{key.LastKeyPart.RawKey} is an array of tables. Could not append to array of tables via dotted key.");
+          throwTomlSerializerException(parserState, $"Key '{key}' is an array of tables. Could not append to array of tables via dotted key.");
         }
         await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
 
@@ -337,7 +335,7 @@ namespace RStein.TOML
 
         if (!isNewLineChar(parserState) && parserState.CurrentChar != ',' && parserState.CurrentChar != '}' && !parserState.Eof)
         {
-          throwTomlSerializerException(parserState, $"Expected end of line, but found '{parserState.CurrentChar}'.");
+          throwTomlSerializerException(parserState, $"Expected end of line or comment after the value of key '{key}', but found {describeChar(parserState.CurrentChar)}.");
         }
 
         await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
@@ -365,7 +363,7 @@ namespace RStein.TOML
         }
 
         await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
-        throwIfEof(parserState);
+        throwIfEof(parserState, "a value");
 
         switch (parserState.CurrentChar)
         {
@@ -397,7 +395,7 @@ namespace RStein.TOML
                 return new TomlPrimitiveValue(TomlPrimitiveValue.TRUE_VALUE_LITERAL, TomlValueType.Boolean);
               }
 
-              throwTomlSerializerException(parserState, "The value format is not recognized.");
+              throwTomlSerializerException(parserState, $"Invalid value: expected '{TomlPrimitiveValue.TRUE_VALUE_LITERAL}', but found {describeCurrentChar(parserState)} while reading it. Strings must be quoted.");
               break;
             }
           case 'f':
@@ -406,7 +404,7 @@ namespace RStein.TOML
               return new TomlPrimitiveValue(TomlPrimitiveValue.FALSE_VALUE_LITERAL, TomlValueType.Boolean);
             }
 
-            throwTomlSerializerException(parserState, "The value format is not recognized.");
+            throwTomlSerializerException(parserState, $"Invalid value: expected '{TomlPrimitiveValue.FALSE_VALUE_LITERAL}', but found {describeCurrentChar(parserState)} while reading it. Strings must be quoted.");
             break;
         }
 
@@ -425,7 +423,7 @@ namespace RStein.TOML
           return new TomlPrimitiveValue(dateTimeValue, TomlValueType.DateTime, subType);
         }
 
-        throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+        throwTomlSerializerException(parserState, $"Unexpected {describeChar(parserState.CurrentChar)} where a value was expected. A value must be a string, number, boolean, date-time, array or inline table (strings must be quoted).");
 
         return null;
       }
@@ -472,7 +470,7 @@ namespace RStein.TOML
             {
               if (mustHaveDateTime)
               {
-                throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+                throwTomlSerializerException(parserState, "Invalid date-time: expected a time after 'T', but found a comment.");
               }
 
               candidateTypes = TomlDataType.LocalDate;
@@ -536,21 +534,21 @@ namespace RStein.TOML
       {
         parserState.StringBuilder.Append(parserState.CurrentChar);
         await advance(parserState, useAsync).ConfigureAwait(false);
-        throwIfEof(parserState);
+        throwIfEof(parserState, "hours of the time zone offset");
         await parseTimeHour(parserState, useAsync).ConfigureAwait(false);
 
         await advance(parserState, useAsync).ConfigureAwait(false);
-        throwIfEof(parserState);
-        expectChar(parserState, ':', INVALID_TOML_VALUE_ERROR);
+        throwIfEof(parserState, "':' in the time zone offset");
+        expectChar(parserState, ':', INVALID_TIME_OFFSET_ERROR);
         parserState.StringBuilder.Append(parserState.CurrentChar);
 
         await advance(parserState, useAsync).ConfigureAwait(false);
-        throwIfEof(parserState);
+        throwIfEof(parserState, "minutes of the time zone offset");
         await parseTimeMinute(parserState, useAsync).ConfigureAwait(false);
         return;
       }
 
-      throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+      throwTomlSerializerException(parserState, $"{INVALID_TIME_OFFSET_ERROR} Found {describeChar(parserState.CurrentChar)}.");
     }
 
     private static async ValueTask parsePartialTime<TInputReader>(ParserState<TInputReader> parserState,
@@ -565,11 +563,11 @@ namespace RStein.TOML
         await advance(parserState, useAsync).ConfigureAwait(false);
       }
 
-      throwIfEof(parserState);
-      expectChar(parserState, ':', INVALID_TOML_VALUE_ERROR);
+      throwIfEof(parserState, "':' after the hour");
+      expectChar(parserState, ':', INVALID_TIME_ERROR);
       parserState.StringBuilder.Append(parserState.CurrentChar);
       await advance(parserState, useAsync).ConfigureAwait(false);
-      throwIfEof(parserState);
+      throwIfEof(parserState, "minutes");
       await parseTimeMinute(parserState, useAsync).ConfigureAwait(false);
 
       var peekChar = peek(parserState);
@@ -582,11 +580,11 @@ namespace RStein.TOML
       }
 
       await advance(parserState, useAsync).ConfigureAwait(false);
-      throwIfEof(parserState);
-      expectChar(parserState, ':', INVALID_TOML_VALUE_ERROR);
+      throwIfEof(parserState, "':' after the minutes");
+      expectChar(parserState, ':', INVALID_TIME_ERROR);
       parserState.StringBuilder.Append(parserState.CurrentChar);
       await advance(parserState, useAsync).ConfigureAwait(false);
-      throwIfEof(parserState);
+      throwIfEof(parserState, "seconds");
       await parseTimeSeconds(parserState, useAsync).ConfigureAwait(false);
 
       peekChar = peek(parserState);
@@ -602,13 +600,13 @@ namespace RStein.TOML
     private static async ValueTask parseTimeSecFraction<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
-      expectChar(parserState, '.', INVALID_TOML_VALUE_ERROR);
+      expectChar(parserState, '.', INVALID_FRACTIONAL_SECONDS_ERROR);
       parserState.StringBuilder.Append(parserState.CurrentChar);
       await advance(parserState, useAsync).ConfigureAwait(false);
-      throwIfEof(parserState);
+      throwIfEof(parserState, "digits after '.'");
       if (!char.IsDigit(parserState.CurrentChar))
       {
-        throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+        throwTomlSerializerException(parserState, $"{INVALID_FRACTIONAL_SECONDS_ERROR} Expected a digit after '.', but found {describeChar(parserState.CurrentChar)}.");
       }
 
       await parseDigits(parserState, useAsync).ConfigureAwait(false);
@@ -639,17 +637,17 @@ namespace RStein.TOML
 
       if (!char.IsDigit(parserState.CurrentChar) || parserState.CurrentChar - '0' > 5)
       {
-        throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+        throwTomlSerializerException(parserState, $"Invalid seconds: expected two digits 00-59, but found {describeDigitPair(parserState)}.");
       }
 
       var secondsC1 = parserState.CurrentChar;
       parserState.StringBuilder.Append(parserState.CurrentChar);
       await advance(parserState, useAsync).ConfigureAwait(false);
-      throwIfEof(parserState);
+      throwIfEof(parserState, "the second digit of the seconds");
       var secondsC2 = parserState.CurrentChar;
       if (!char.IsDigit(parserState.CurrentChar) || !rawSecondsToIntSeconds(secondsC1, secondsC2, out var seconds))
       {
-        throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+        throwTomlSerializerException(parserState, $"Invalid seconds: expected 00-59, but found '{secondsC1}{secondsC2}'.");
         //Unreachable
         return -1;
       }
@@ -669,17 +667,17 @@ namespace RStein.TOML
     {
       if (!char.IsDigit(parserState.CurrentChar) || parserState.CurrentChar - '0' > 5)
       {
-        throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+        throwTomlSerializerException(parserState, $"Invalid minutes: expected two digits 00-59, but found {describeDigitPair(parserState)}.");
       }
 
       var minuteC1 = parserState.CurrentChar;
       parserState.StringBuilder.Append(parserState.CurrentChar);
       await advance(parserState, useAsync).ConfigureAwait(false);
-      throwIfEof(parserState);
+      throwIfEof(parserState, "the second digit of the minutes");
       var minuteC2 = parserState.CurrentChar;
       if (!char.IsDigit(parserState.CurrentChar) || !rawMinuteToIntMinute(minuteC1, minuteC2, out var minute))
       {
-        throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+        throwTomlSerializerException(parserState, $"Invalid minutes: expected 00-59, but found '{minuteC1}{minuteC2}'.");
         //Unreachable
         return -1;
       }
@@ -701,7 +699,7 @@ namespace RStein.TOML
       {
         if (!rawHourToIntHour(firstDateOrTimePart, out var intHour))
         {
-          throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+          throwTomlSerializerException(parserState, $"Invalid hour: expected two digits 00-23, but found '{firstDateOrTimePart}'.");
         }
 
         parserState.StringBuilder.Append(firstDateOrTimePart);
@@ -709,18 +707,18 @@ namespace RStein.TOML
       }
       if (!char.IsDigit(parserState.CurrentChar))
       {
-        throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+        throwTomlSerializerException(parserState, $"Invalid hour: expected two digits 00-23, but found {describeChar(parserState.CurrentChar)}.");
       }
 
-      expectChar(parserState, '0', '1', '2', INVALID_TOML_VALUE_ERROR);
+      expectChar(parserState, '0', '1', '2', "Invalid hour: expected two digits 00-23.");
       var hourC1 = parserState.CurrentChar;
       parserState.StringBuilder.Append(parserState.CurrentChar);
       await advance(parserState, useAsync).ConfigureAwait(false);
-      throwIfEof(parserState);
+      throwIfEof(parserState, "the second digit of the hour");
       var hourC2 = parserState.CurrentChar;
       if (!char.IsDigit(parserState.CurrentChar) || !rawHourToIntHour(hourC1, hourC2, out var hour))
       {
-        throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+        throwTomlSerializerException(parserState, $"Invalid hour: expected 00-23, but found '{hourC1}{hourC2}'.");
         //Unreachable
         return -1;
       }
@@ -744,17 +742,17 @@ namespace RStein.TOML
     {
       Debug.Assert(parserState.StringBuilder.Length == 0);
       var year = await parseYear(firstDatePart, parserState).ConfigureAwait(false);
-      expectChar(parserState, '-', INVALID_TOML_VALUE_ERROR);
+      expectChar(parserState, '-', INVALID_DATE_ERROR);
       parserState.StringBuilder.Append(parserState.CurrentChar);
       await advance(parserState, useAsync).ConfigureAwait(false);
-      throwIfEof(parserState);
+      throwIfEof(parserState, "the month");
       var month = await parseMonth(parserState, useAsync).ConfigureAwait(false);
       await advance(parserState, useAsync).ConfigureAwait(false);
-      throwIfEof(parserState);
-      expectChar(parserState, '-', INVALID_TOML_VALUE_ERROR);
+      throwIfEof(parserState, "'-' after the month");
+      expectChar(parserState, '-', INVALID_DATE_ERROR);
       parserState.StringBuilder.Append(parserState.CurrentChar);
       await advance(parserState, useAsync).ConfigureAwait(false);
-      throwIfEof(parserState);
+      throwIfEof(parserState, "the day");
       await parseMonthDay(parserState, year, month, useAsync).ConfigureAwait(false);
     }
 
@@ -767,16 +765,16 @@ namespace RStein.TOML
 
       if (!char.IsDigit(parserState.CurrentChar))
       {
-        throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+        throwTomlSerializerException(parserState, $"Invalid day: expected two digits 01-31, but found {describeChar(parserState.CurrentChar)}.");
       }
       var dayC1 = parserState.CurrentChar;
       parserState.StringBuilder.Append(parserState.CurrentChar);
       await advance(parserState, useAsync).ConfigureAwait(false);
-      throwIfEof(parserState);
+      throwIfEof(parserState, "the second digit of the day");
       var dayC2 = parserState.CurrentChar;
       if (!char.IsDigit(parserState.CurrentChar) || !rawMonthDayToMonthDayInt(parserState, dayC1, dayC2, year, month, out var day))
       {
-        throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+        throwTomlSerializerException(parserState, $"Invalid day: expected two digits 01-31, but found '{dayC1}{dayC2}'.");
         //Unreachable
         return -1;
       }
@@ -795,12 +793,12 @@ namespace RStein.TOML
     {
       if (!int.TryParse($"{dayC1}{dayC2}", out day))
       {
-        throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+        throwTomlSerializerException(parserState, $"Invalid day: expected two digits 01-31, but found '{dayC1}{dayC2}'.");
       }
 
       if (!DateTime.TryParseExact($"{year}/{month}/{day}", new[] { "yyyy/MM/dd", "yyyy/M/dd", "yyyy/MM/d", "yyyy/M/d", "y/M/d" }, CultureInfo.InvariantCulture, DateTimeStyles.None, out var _))
       {
-        throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+        throwTomlSerializerException(parserState, $"Invalid date: '{year:D4}-{month:D2}-{dayC1}{dayC2}' does not exist in the calendar.");
       }
 
       return true;
@@ -811,18 +809,18 @@ namespace RStein.TOML
     {
       if (!char.IsDigit(parserState.CurrentChar))
       {
-        throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+        throwTomlSerializerException(parserState, $"Invalid month: expected two digits 01-12, but found {describeChar(parserState.CurrentChar)}.");
       }
 
-      expectChar(parserState, '0', '1', INVALID_TOML_VALUE_ERROR);
+      expectChar(parserState, '0', '1', "Invalid month: expected two digits 01-12.");
       var monthC1 = parserState.CurrentChar;
       parserState.StringBuilder.Append(parserState.CurrentChar);
       await advance(parserState, useAsync).ConfigureAwait(false);
-      throwIfEof(parserState);
+      throwIfEof(parserState, "the second digit of the month");
       var monthC2 = parserState.CurrentChar;
       if (!char.IsDigit(parserState.CurrentChar) || !rawMonthToIntMonth(monthC1, monthC2, out var month))
       {
-        throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+        throwTomlSerializerException(parserState, $"Invalid month: expected 01-12, but found '{monthC1}{monthC2}'.");
         //Unreachable
         return -1;
       }
@@ -843,7 +841,7 @@ namespace RStein.TOML
       const int YEAR_LENGTH = 4;
       if (yearCandidate.Length != YEAR_LENGTH || !int.TryParse(yearCandidate, out var year))
       {
-        throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+        throwTomlSerializerException(parserState, $"Invalid year: expected four digits, but found '{yearCandidate}'.");
         //Unreachable
         return new ValueTask<int>(-1);
       }
@@ -857,13 +855,16 @@ namespace RStein.TOML
     {
       var oldTable = parserState.CurrentTomlTable;
       Debug.Assert(oldTable != null);
+      var constructEntered = false;
       try
       {
         if (parserState.CurrentChar != '{')
         {
-          throwTomlSerializerException(parserState, INVALID_TOML_INLINE_TABLE_DEFINITION_ERROR);
+          throwTomlSerializerException(parserState, $"{INVALID_INLINE_TABLE_ERROR} Expected '{{', but found {describeChar(parserState.CurrentChar)}.");
         }
 
+        enterConstruct(parserState, "inline table");
+        constructEntered = true;
 
         var newInlineTable = new TomlInlineTable(new TomlKey(TomlTable.ANONYMOUS_TABLE_NAME, TomlKeyType.SimpleQuotedBasicString));
         while (parserState.CurrentChar != '}')
@@ -877,7 +878,7 @@ namespace RStein.TOML
             if (newInlineTable.Count > 0 && parserState.TomlSettings.TomlVersion == TomlVersion.Toml10)
             {
               //Trailing comma not allowed
-              throwTomlSerializerException(parserState, INVALID_TOML_INLINE_TABLE_DEFINITION_ERROR);
+              throwTomlSerializerException(parserState, $"{INVALID_INLINE_TABLE_ERROR} A trailing comma is not allowed in TOML 1.0.");
             }
 
             continue;
@@ -886,14 +887,14 @@ namespace RStein.TOML
           //Empty inline table with comma
           if (parserState.CurrentChar == ',')
           {
-            throwTomlSerializerException(parserState, INVALID_TOML_INLINE_TABLE_DEFINITION_ERROR);
+            throwTomlSerializerException(parserState, $"{INVALID_INLINE_TABLE_ERROR} Unexpected ',': a key was expected.");
           }
 
           if (isNewLineChar(parserState) || parserState.CurrentChar == '#')
           {
             if (parserState.TomlSettings.TomlVersion == TomlVersion.Toml10)
             {
-              throwTomlSerializerException(parserState, INVALID_TOML_INLINE_TABLE_DEFINITION_ERROR);
+              throwTomlSerializerException(parserState, $"{INVALID_INLINE_TABLE_ERROR} Newlines and comments are not allowed inside an inline table in TOML 1.0.");
             }
             else
             {
@@ -925,7 +926,7 @@ namespace RStein.TOML
             await parseWsCommentNewLine(parserState, useAsync).ConfigureAwait(false);
           }
 
-          expectChar(parserState, ',', '}', INVALID_TOML_ARRAY_DEFINITION_ERROR);
+          expectChar(parserState, ',', '}', INVALID_INLINE_TABLE_ERROR);
         }
 
         await advance(parserState, useAsync).ConfigureAwait(false);
@@ -933,6 +934,11 @@ namespace RStein.TOML
       }
       finally
       {
+        if (constructEntered)
+        {
+          exitConstruct(parserState);
+        }
+
         parserState.CurrentTomlTable = oldTable;
         parserState.KeyParent = TomlTokenType.Undefined;
       }
@@ -943,29 +949,37 @@ namespace RStein.TOML
     {
       if (parserState.CurrentChar != '[')
       {
-        throwTomlSerializerException(parserState, INVALID_TOML_ARRAY_DEFINITION_ERROR);
+        throwTomlSerializerException(parserState, $"{INVALID_ARRAY_ERROR} Expected '[', but found {describeChar(parserState.CurrentChar)}.");
       }
 
       var tomlArray = new TomlArray(new TomlKey(TomlArray.ANONYMOUS_ARRAY_NAME, TomlKeyType.SimpleQuotedBasicString));
 
-      while (parserState.CurrentChar != ']')
+      enterConstruct(parserState, "array");
+      try
       {
-        if (!await advance(parserState, useAsync).ConfigureAwait(false))
+        while (parserState.CurrentChar != ']')
         {
-          throwTomlSerializerException(parserState, INVALID_TOML_ARRAY_DEFINITION_ERROR);
+          if (!await advance(parserState, useAsync).ConfigureAwait(false))
+          {
+            throwEof(parserState, "an array value or ']'");
+          }
+
+          await parseWsCommentNewLine(parserState, useAsync).ConfigureAwait(false);
+
+          if (parserState.CurrentChar == ']')
+          {
+            continue;
+          }
+
+          var arrayValue = await parseValue(parserState, useAsync).ConfigureAwait(false);
+          tomlArray.Add(arrayValue);
+          await parseWsCommentNewLine(parserState, useAsync).ConfigureAwait(false);
+          expectChar(parserState, ',', ']', INVALID_ARRAY_ERROR);
         }
-
-        await parseWsCommentNewLine(parserState, useAsync).ConfigureAwait(false);
-
-        if (parserState.CurrentChar == ']')
-        {
-          continue;
-        }
-
-        var arrayValue = await parseValue(parserState, useAsync).ConfigureAwait(false);
-        tomlArray.Add(arrayValue);
-        await parseWsCommentNewLine(parserState, useAsync).ConfigureAwait(false);
-        expectChar(parserState, ',', ']', INVALID_TOML_ARRAY_DEFINITION_ERROR);
+      }
+      finally
+      {
+        exitConstruct(parserState);
       }
 
       await advance(parserState, useAsync).ConfigureAwait(false);
@@ -1011,7 +1025,7 @@ namespace RStein.TOML
           {
             if (builder.Length == 0 || (builder.Length == 1 && !char.IsDigit(builder[0])))
             {
-              throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+              throwTomlSerializerException(parserState, "Invalid number: expected digits, but reached the end of the document.");
             }
 
             valueCandidateTypes = TomlDataType.IntegerDec;
@@ -1022,7 +1036,7 @@ namespace RStein.TOML
           {
             if (!char.IsDigit(parserState.CurrentChar) && parserState.CurrentChar != 'i' && parserState.CurrentChar != 'n')
             {
-              throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+              throwTomlSerializerException(parserState, $"Invalid number: expected a digit, 'inf' or 'nan' after the sign, but found {describeChar(parserState.CurrentChar)}.");
             }
           }
 
@@ -1035,7 +1049,7 @@ namespace RStein.TOML
           {
             if (builder.Length > 0 && builder[0] != '+' && builder[0] != '-')
             {
-              throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+              throwTomlSerializerException(parserState, "Invalid number: 'inf' can only be preceded by a sign.");
             }
 
             valueCandidateTypes = TomlDataType.Float;
@@ -1047,7 +1061,7 @@ namespace RStein.TOML
           {
             if (builder.Length > 0 && builder[0] != '+' && builder[0] != '-')
             {
-              throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+              throwTomlSerializerException(parserState, "Invalid number: 'nan' can only be preceded by a sign.");
             }
 
             valueCandidateTypes = TomlDataType.Float;
@@ -1061,19 +1075,14 @@ namespace RStein.TOML
             {
               if (builder[0] != '0')
               {
-                throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+                throwTomlSerializerException(parserState, "Invalid number: unexpected 'x'. Hexadecimal integers must start with '0x' and cannot have a sign.");
               }
 
               valueCandidateTypes = TomlDataType.IntegerHex;
               var peekChar = peek(parserState);
-              if (peekChar == null)
+              if (peekChar == null || !isHexDigit(peekChar.Value))
               {
-                throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
-              }
-
-              if (!isHexDigit(peekChar.Value))
-              {
-                throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+                throwTomlSerializerException(parserState, $"Invalid number: expected a hexadecimal digit after '0x', but found {describeChar(peekChar)}.");
               }
 
               builder.Append(parserState.CurrentChar);
@@ -1085,19 +1094,14 @@ namespace RStein.TOML
             {
               if (builder[0] != '0')
               {
-                throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+                throwTomlSerializerException(parserState, "Invalid number: unexpected 'o'. Octal integers must start with '0o' and cannot have a sign.");
               }
 
               valueCandidateTypes = TomlDataType.IntegerOct;
               var peekChar = peek(parserState);
-              if (peekChar == null)
+              if (peekChar == null || !isOctalDigit(peekChar.Value))
               {
-                throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
-              }
-
-              if (!isOctalDigit(peekChar.Value))
-              {
-                throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+                throwTomlSerializerException(parserState, $"Invalid number: expected an octal digit (0-7) after '0o', but found {describeChar(peekChar)}.");
               }
 
               builder.Append(parserState.CurrentChar);
@@ -1109,19 +1113,14 @@ namespace RStein.TOML
             {
               if (builder[0] != '0')
               {
-                throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+                throwTomlSerializerException(parserState, "Invalid number: unexpected 'b'. Binary integers must start with '0b' and cannot have a sign.");
               }
 
               valueCandidateTypes = TomlDataType.IntegerBin;
               var peekChar = peek(parserState);
-              if (peekChar == null)
+              if (peekChar == null || !isBinaryDigit(peekChar.Value))
               {
-                throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
-              }
-
-              if (!isBinaryDigit(peekChar.Value))
-              {
-                throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+                throwTomlSerializerException(parserState, $"Invalid number: expected a binary digit (0 or 1) after '0b', but found {describeChar(peekChar)}.");
               }
 
               builder.Append(parserState.CurrentChar);
@@ -1140,7 +1139,7 @@ namespace RStein.TOML
 
                 if (isInvalidZeroPrefixedNumber(builder))
                 {
-                  throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+                  throwTomlSerializerException(parserState, "Invalid number: leading zeros are not allowed.");
                 }
 
                 await parseFloatExponent(parserState, useAsync).ConfigureAwait(false);
@@ -1152,7 +1151,7 @@ namespace RStein.TOML
 
                 if (isInvalidZeroPrefixedNumber(builder))
                 {
-                  throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+                  throwTomlSerializerException(parserState, "Invalid number: leading zeros are not allowed.");
                 }
 
                 await parseFloatFraction(parserState, useAsync).ConfigureAwait(false);
@@ -1167,7 +1166,7 @@ namespace RStein.TOML
               {
                 if (isInvalidZeroPrefixedNumber(builder))
                 {
-                  throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+                  throwTomlSerializerException(parserState, "Invalid number: leading zeros are not allowed.");
                 }
 
                 valueCandidateTypes = TomlDataType.IntegerDec;
@@ -1175,7 +1174,7 @@ namespace RStein.TOML
               }
               else
               {
-                throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+                throwTomlSerializerException(parserState, $"Invalid number: unexpected {describeChar(parserState.CurrentChar)}.");
               }
             }
           }
@@ -1208,7 +1207,7 @@ namespace RStein.TOML
     {
       if (!await matchLiteralValue(parserState, TomlPrimitiveValue.SPECIAL_FLOAT_NAN_LITERAL, useAsync).ConfigureAwait(false))
       {
-        throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+        throwTomlSerializerException(parserState, $"Invalid number: expected '{TomlPrimitiveValue.SPECIAL_FLOAT_NAN_LITERAL}', but found {describeCurrentChar(parserState)} while reading it.");
       }
 
       parserState.StringBuilder.Append(TomlPrimitiveValue.SPECIAL_FLOAT_NAN_LITERAL);
@@ -1219,7 +1218,7 @@ namespace RStein.TOML
     {
       if (!await matchLiteralValue(parserState, TomlPrimitiveValue.SPECIAL_FLOAT_INF_LITERAL, useAsync).ConfigureAwait(false))
       {
-        throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+        throwTomlSerializerException(parserState, $"Invalid number: expected '{TomlPrimitiveValue.SPECIAL_FLOAT_INF_LITERAL}', but found {describeCurrentChar(parserState)} while reading it.");
       }
 
       parserState.StringBuilder.Append(TomlPrimitiveValue.SPECIAL_FLOAT_INF_LITERAL);
@@ -1232,11 +1231,11 @@ namespace RStein.TOML
       var builder = parserState.StringBuilder;
       builder.Append(parserState.CurrentChar);
       await advance(parserState, useAsync).ConfigureAwait(false);
-      throwIfEof(parserState);
+      throwIfEof(parserState, "digits after '.'");
 
       if (!char.IsDigit(parserState.CurrentChar))
       {
-        throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+        throwTomlSerializerException(parserState, $"Invalid number: expected a digit after '.', but found {describeChar(parserState.CurrentChar)}.");
       }
 
       await parseUnsignedDecInt(parserState, useAsync).ConfigureAwait(false);
@@ -1253,16 +1252,16 @@ namespace RStein.TOML
       var builder = parserState.StringBuilder;
       builder.Append(parserState.CurrentChar);
       await advance(parserState, useAsync).ConfigureAwait(false);
-      throwIfEof(parserState);
+      throwIfEof(parserState, "the exponent");
       if (parserState.CurrentChar == '+' || parserState.CurrentChar == '-')
       {
         builder.Append(parserState.CurrentChar);
         await advance(parserState, useAsync).ConfigureAwait(false);
       }
 
-      if (!char.IsDigit(parserState.CurrentChar))
+      if (parserState.Eof || !char.IsDigit(parserState.CurrentChar))
       {
-        throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+        throwTomlSerializerException(parserState, $"Invalid number: expected a digit in the exponent, but found {describeCurrentChar(parserState)}.");
       }
 
       await parseUnsignedDecInt(parserState, useAsync).ConfigureAwait(false);
@@ -1282,7 +1281,7 @@ namespace RStein.TOML
         var peekChar = peek(parserState);
         if (parserState.CurrentChar == '_' && (peekChar == null || peekChar == '_' || !isBinaryDigit(peekChar.Value)))
         {
-          throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+          throwTomlSerializerException(parserState, "Invalid number: '_' must be placed between two digits.");
         }
 
         await advance(parserState, useAsync).ConfigureAwait(false);
@@ -1305,13 +1304,15 @@ namespace RStein.TOML
         var peekChar = peek(parserState);
         if (parserState.CurrentChar == '_' && (peekChar == null || peekChar == '_' || !isOctalDigit(peekChar.Value)))
         {
-          throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+          throwTomlSerializerException(parserState, "Invalid number: '_' must be placed between two digits.");
         }
         await advance(parserState, useAsync).ConfigureAwait(false);
       }
     }
 
     private static bool isOctalDigit(char ch) => (ch >= '0' && ch <= '7');
+
+    private static bool isAsciiHexDigit(char ch) => (ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'F') || (ch >= 'a' && ch <= 'f');
 
     private static bool isHexDigit(char ch) => char.IsDigit(ch) || (ch >= 'A' && ch <= 'F') || ((ch >= 'a' && ch <= 'f'));
 
@@ -1330,7 +1331,7 @@ namespace RStein.TOML
         var peekChar = peek(parserState);
         if (parserState.CurrentChar == '_' && (peekChar == null || peekChar == '_' || !isHexDigit(peekChar.Value)))
         {
-          throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+          throwTomlSerializerException(parserState, "Invalid number: '_' must be placed between two digits.");
         }
 
         await advance(parserState, useAsync).ConfigureAwait(false);
@@ -1352,7 +1353,7 @@ namespace RStein.TOML
         var peekChar = peek(parserState);
         if (parserState.CurrentChar == '_' && (peekChar == null || peekChar == '_' || !char.IsDigit(peekChar.Value)))
         {
-          throwTomlSerializerException(parserState, INVALID_TOML_VALUE_ERROR);
+          throwTomlSerializerException(parserState, "Invalid number: '_' must be placed between two digits.");
         }
         await advance(parserState, useAsync).ConfigureAwait(false);
       }
@@ -1400,6 +1401,8 @@ namespace RStein.TOML
         return (await parseLiteralString(parserState, useAsync).ConfigureAwait(false), TomlDataType.LiteralString);
       }
 
+      var startLine = parserState.CurrentLine;
+      var startColumn = parserState.CurrentColumn;
       await advance(parserState, useAsync).ConfigureAwait(false);
 
       if (peek(parserState) != '\'')
@@ -1409,18 +1412,21 @@ namespace RStein.TOML
       }
 
       await advance(parserState, useAsync).ConfigureAwait(false);
-      return (await parseLiteralMlString(parserState, useAsync).ConfigureAwait(false), TomlDataType.LiteralMlString);
+      return (await parseLiteralMlString(parserState, startLine, startColumn, useAsync).ConfigureAwait(false), TomlDataType.LiteralMlString);
     }
 
-    private static async ValueTask<string> parseLiteralMlString<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
+    private static async ValueTask<string> parseLiteralMlString<TInputReader>(ParserState<TInputReader> parserState,
+                                                                              int startLine,
+                                                                              int startColumn,
+                                                                              bool useAsync)
       where TInputReader : struct, IInputReader
     {
       var literalMlBuilder = parserState.StringBuilder;
       Debug.Assert(parserState.CurrentChar == '\'');
       Debug.Assert(literalMlBuilder.Length == 0);
+      enterConstruct(parserState, "multiline literal string", startLine, startColumn);
       try
       {
-        //parserState.ParsingString = true;
         await advance(parserState, useAsync).ConfigureAwait(false);
         await skipNewLine(parserState, useAsync).ConfigureAwait(false);
         while (true)
@@ -1482,12 +1488,13 @@ namespace RStein.TOML
           }
           else
           {
-            throwTomlSerializerException(parserState, $"Invalid string definition. Found unsupported char {(int)parserState.CurrentChar:x}");
+            throwTomlSerializerException(parserState, $"Character {describeChar(parserState.CurrentChar)} is not allowed in a multiline literal string.");
           }
         }
       }
       finally
       {
+        exitConstruct(parserState);
         literalMlBuilder.Clear();
       }
     }
@@ -1503,6 +1510,8 @@ namespace RStein.TOML
         return (await parseBasicString(parserState, useAsync).ConfigureAwait(false), TomlDataType.BasicString);
       }
 
+      var startLine = parserState.CurrentLine;
+      var startColumn = parserState.CurrentColumn;
       await advance(parserState, useAsync).ConfigureAwait(false);
       if (peek(parserState) != '"')
       {
@@ -1512,18 +1521,21 @@ namespace RStein.TOML
 
       await advance(parserState, useAsync).ConfigureAwait(false);
 
-      return (await parseBasicMlString(parserState, useAsync).ConfigureAwait(false), TomlDataType.BasicMlString);
+      return (await parseBasicMlString(parserState, startLine, startColumn, useAsync).ConfigureAwait(false), TomlDataType.BasicMlString);
     }
 
-    private static async ValueTask<string> parseBasicMlString<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
+    private static async ValueTask<string> parseBasicMlString<TInputReader>(ParserState<TInputReader> parserState,
+                                                                            int startLine,
+                                                                            int startColumn,
+                                                                            bool useAsync)
       where TInputReader : struct, IInputReader
     {
       var basicMlBuilder = parserState.StringBuilder;
       Debug.Assert(parserState.CurrentChar == '"');
       Debug.Assert(basicMlBuilder.Length == 0);
+      enterConstruct(parserState, "multiline basic string", startLine, startColumn);
       try
       {
-        parserState.ParsingString = true;
         await advance(parserState, useAsync).ConfigureAwait(false);
         await skipNewLine(parserState, useAsync).ConfigureAwait(false);
         while (true)
@@ -1588,7 +1600,7 @@ namespace RStein.TOML
                   break;
                 default:
                   {
-                    throwTomlSerializerException(parserState, "Invalid string definition. Found more than 2 '\"' chars inside the multiline string.");
+                    throwTomlSerializerException(parserState, "Invalid multiline basic string. No more than two consecutive '\"' characters are allowed inside the string (escape them with a backslash).");
                     break;
                   }
               }
@@ -1603,12 +1615,13 @@ namespace RStein.TOML
           }
           else
           {
-            throwTomlSerializerException(parserState, $"Invalid string definition. Found unsupported char {(int)parserState.CurrentChar:x}");
+            throwTomlSerializerException(parserState, $"Character {describeChar(parserState.CurrentChar)} is not allowed in a multiline basic string.");
           }
         }
       }
       finally
       {
+        exitConstruct(parserState);
         parserState.StringBuilder.Clear();
       }
     }
@@ -1635,7 +1648,7 @@ namespace RStein.TOML
         {
           if (!foundEol)
           {
-            throwTomlSerializerException(parserState, "Invalid multiline string. After '/' should be only whitespaces.");
+            throwTomlSerializerException(parserState, "Invalid multiline basic string. A line-ending backslash ('\\') may be followed only by whitespace until the end of the line.");
           }
           return;
         }
@@ -1673,15 +1686,7 @@ namespace RStein.TOML
           {
             if (tomlTableOrArrayToken.TokenType != TomlTokenType.Table && tomlTableOrArrayToken.TokenType != TomlTokenType.ArrayOfTables)
             {
-              throwTomlSerializerException(parserState, $"Token '{newKeyPart}' exists and has type '{tomlTableOrArrayToken.TokenType}'. Expected token type: '{nameof(TomlTokenType.Table)} or '{nameof(TomlTokenType.ArrayOfTables)}'.");
-              if (tomlTableOrArrayToken.TokenType == TomlTokenType.Array)
-              {
-                var tokenType = ((TomlArray)tomlTableOrArrayToken)[0]?.TokenType ?? TomlTokenType.Undefined;
-                if (tokenType != TomlTokenType.Table)
-                {
-                  throwTomlSerializerException(parserState, $"Token '{newKeyPart}' must be previously defined array of tables. Found: '{tokenType}'.");
-                }
-              }
+              throwTomlSerializerException(parserState, $"Key '{newKeyPart}' is already defined as '{tomlTableOrArrayToken.TokenType}' and cannot be used as a table.");
             }
           }
           else
@@ -1691,7 +1696,7 @@ namespace RStein.TOML
             newTomlTable.HasFromKeyDefinition = parserState.KeyParent == TomlTokenType.KeyValue;
             if (newTomlTable.HasFromKeyDefinition && (lastParsedTable?.HasTopLevelDefinition ?? false))
             {
-              throwTomlSerializerException(parserState);
+              throwTomlSerializerException(parserState, $"Cannot define table '{newKeyPart}' with a dotted key inside table '{lastParsedTable!.FullName}': that table was explicitly defined with a [header] and cannot be extended with dotted keys.");
             }
             tomlTableOrArrayToken = newTomlTable;
           }
@@ -1813,7 +1818,7 @@ namespace RStein.TOML
             await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
             if (parserState.Eof)
             {
-              throwTomlSerializerException(parserState, "Unterminated key.");
+              throwEof(parserState, "'=' after the key");
             }
 
             if (keyBuilder.Length > 0)
@@ -1824,13 +1829,13 @@ namespace RStein.TOML
           }
           else
           {
-            throwTomlSerializerException(parserState, $"'{(int)parserState.CurrentChar:x}' character is not allowed in unquoted key.");
+            throwTomlSerializerException(parserState, $"Character {describeChar(parserState.CurrentChar)} is not allowed in an unquoted key. Unquoted keys may contain only A-Z, a-z, 0-9, '-' and '_'; quote the key otherwise.");
           }
         }
 
         if (keyBuilder.Length == 0)
         {
-          throwTomlSerializerException(parserState, "Simple key cannot be empty string.");
+          throwTomlSerializerException(parserState, "A key must not be empty (use a quoted key such as \"\" for an empty name).");
         }
 
         return keyBuilder.ToString();
@@ -1850,7 +1855,7 @@ namespace RStein.TOML
     {
       if (parserState.CurrentChar != expectedChar1 && parserState.CurrentChar != expectedChar2 && parserState.CurrentChar != expectedChar3)
       {
-        throwTomlSerializerException(parserState, $"{error} Expected char '{expectedChar1}' or char '{expectedChar2}' or char '{expectedChar3}', but found '{parserState.CurrentChar}'.");
+        throwTomlSerializerException(parserState, $"{error} Expected '{expectedChar1}', '{expectedChar2}' or '{expectedChar3}', but found {describeCurrentChar(parserState)}.");
       }
     }
 
@@ -1861,7 +1866,7 @@ namespace RStein.TOML
     {
       if (parserState.CurrentChar != expectedChar)
       {
-        throwTomlSerializerException(parserState, $"{error} Expected char '{expectedChar}', but found '{parserState.CurrentChar}'.");
+        throwTomlSerializerException(parserState, $"{error} Expected '{expectedChar}', but found {describeCurrentChar(parserState)}.");
       }
     }
 
@@ -1875,7 +1880,7 @@ namespace RStein.TOML
 
       if (parserState.CurrentChar != expectedChar1 && parserState.CurrentChar != expectedChar2)
       {
-        throwTomlSerializerException(parserState, $"{error} Expected char '{expectedChar1}' or char '{expectedChar2}', but found '{parserState.CurrentChar}'.");
+        throwTomlSerializerException(parserState, $"{error} Expected '{expectedChar1}' or '{expectedChar2}', but found {describeCurrentChar(parserState)}.");
       }
     }
 
@@ -1890,7 +1895,8 @@ namespace RStein.TOML
         case '\'':
           return parseLiteralString(parserState, useAsync);
         default:
-          throw new TomlSerializerException($"Unexpected char{(int)parserState.CurrentChar:X}");
+          throwTomlSerializerException(parserState, $"Unexpected {describeChar(parserState.CurrentChar)} where a quoted key was expected.");
+          return default;
       }
     }
 
@@ -1901,14 +1907,13 @@ namespace RStein.TOML
       try
       {
         var literalStringBuilder = parserState.StringBuilder;
-        parserState.ParsingString = true;
 
         do
         {
           await advance(parserState, useAsync).ConfigureAwait(false);
           if (parserState.Eof)
           {
-            throwTomlSerializerException(parserState, "Unterminated literal string.");
+            throwEof(parserState, "closing ' of the literal string", reportOpenConstruct: false);
           }
 
           if (parserState.CurrentChar == '\'')
@@ -1924,7 +1929,7 @@ namespace RStein.TOML
 
           else
           {
-            throwTomlSerializerException(parserState, $"Found unexpected char in literal string. {(int)parserState.CurrentChar:X}");
+            throwTomlSerializerException(parserState, $"Character {describeChar(parserState.CurrentChar)} is not allowed in a literal string{(isNewLineChar(parserState.CurrentChar) ? " (use ''' for a multiline string)" : "")}.");
           }
 
         } while (true);
@@ -1932,7 +1937,6 @@ namespace RStein.TOML
       finally
       {
         parserState.StringBuilder.Clear();
-        parserState.ParsingString = false;
       }
     }
 
@@ -1946,14 +1950,13 @@ namespace RStein.TOML
       try
       {
         var basicStringBuilder = parserState.StringBuilder;
-        parserState.ParsingString = true;
 
         do
         {
           await advance(parserState, useAsync).ConfigureAwait(false);
           if (parserState.Eof)
           {
-            throwTomlSerializerException(parserState, "Unterminated basic string.");
+            throwEof(parserState, "closing \" of the basic string", reportOpenConstruct: false);
           }
 
           if (parserState.CurrentChar == '"')
@@ -1973,7 +1976,7 @@ namespace RStein.TOML
           }
           else
           {
-            throwTomlSerializerException(parserState, $"Found unexpected char in basic string. '{(int)parserState.CurrentChar:X}'");
+            throwTomlSerializerException(parserState, $"Character {describeChar(parserState.CurrentChar)} is not allowed in a basic string{(isNewLineChar(parserState.CurrentChar) ? " (use \"\"\" for a multiline string)" : "")}.");
           }
 
         } while (true);
@@ -1981,7 +1984,6 @@ namespace RStein.TOML
       finally
       {
         parserState.StringBuilder.Clear();
-        parserState.ParsingString = false;
       }
     }
 
@@ -1992,7 +1994,7 @@ namespace RStein.TOML
       await advance(parserState, useAsync).ConfigureAwait(false);
       if (parserState.Eof)
       {
-        throwTomlSerializerException(parserState, UNEXPECTED_END_OF_ESCAPED_CHAR_ERROR);
+        throwEof(parserState, "an escape sequence");
       }
       switch (parserState.CurrentChar)
       {
@@ -2034,25 +2036,38 @@ namespace RStein.TOML
                 ? EIGHT_CHARS
                 : TWO_CHARS;
             var numberChars = new char[requiredChars];
+            var escapeChar = parserState.CurrentChar;
             var readResult = useAsync
               ? await parserState.ReadAsync(new ArraySegment<char>(numberChars)).ConfigureAwait(false)
               : parserState.Read(new ArraySegment<char>(numberChars));
+            //The chars were read directly from the input, so the position has to be moved manually.
+            parserState.CurrentColumn += readResult;
             if (readResult < requiredChars)
             {
-              throwTomlSerializerException(parserState, UNEXPECTED_END_OF_ESCAPED_CHAR_ERROR);
+              throwEof(parserState, $"{requiredChars} hexadecimal digits after '\\{escapeChar}'");
             }
 
-            var int32Char = Convert.ToInt32(new string(numberChars), BASE_NUMBER);
-            if (int32Char >= 0x0 && int32Char <= 0x10FFFF)
+            var escapeDigits = new string(numberChars);
+            if (!numberChars.All(isAsciiHexDigit))
+            {
+              throwTomlSerializerException(parserState, $"Invalid escape sequence '\\{escapeChar}{escapeDigits}': expected {requiredChars} hexadecimal digits after '\\{escapeChar}'.");
+            }
+
+            var int32Char = Convert.ToInt32(escapeDigits, BASE_NUMBER);
+            if (int32Char >= 0x0 && int32Char <= 0x10FFFF && (int32Char < 0xD800 || int32Char > 0xDFFF))
             {
               return (char)int32Char;
             }
 
-            goto default;
+            throwTomlSerializerException(parserState, $"Invalid escape sequence '\\{escapeChar}{escapeDigits}': U+{escapeDigits.ToUpperInvariant()} is not a valid Unicode scalar value (surrogates and values above U+10FFFF are not allowed).");
+            break;
           }
         default:
           {
-            throwTomlSerializerException(parserState, "Unsupported basic escaped char.");
+            var versionHint = (parserState.CurrentChar == 'e' || parserState.CurrentChar == 'x') && parserState.TomlSettings.TomlVersion == TomlVersion.Toml10
+              ? " (it is supported only in TOML 1.1)"
+              : "";
+            throwTomlSerializerException(parserState, $"Unsupported escape sequence '\\{parserState.CurrentChar}'{versionHint}. Supported escapes are \\b \\t \\n \\f \\r \\\" \\\\ \\uXXXX and \\UXXXXXXXX.");
             break;
           }
 
@@ -2083,24 +2098,24 @@ namespace RStein.TOML
         parserState.KeyParent = TomlTokenType.Table;
         if (parserState.CurrentChar != '[')
         {
-          throwTomlSerializerException(parserState, INVALID_TABLE_DEFINITION_ERROR);
+          throwTomlSerializerException(parserState, $"Invalid table header: expected '[', but found {describeChar(parserState.CurrentChar)}.");
         }
 
         await advance(parserState, useAsync).ConfigureAwait(false);
-        throwIfEof(parserState);
+        throwIfEof(parserState, "a table name");
         var (key, parentTable) = await parseKey(parserState, useAsync).ConfigureAwait(false);
         var lastKeyPart = key.LastKeyPart;
         await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
         if (parserState.CurrentChar != ']')
         {
-          throwTomlSerializerException(parserState, INVALID_TABLE_DEFINITION_ERROR);
+          throwTomlSerializerException(parserState, $"Invalid table header: expected ']' to close the header, but found {describeChar(parserState.CurrentChar)}.");
         }
 
         if (parentTable.TryGetValue(lastKeyPart, out var token))
         {
           if (token.TokenType != TomlTokenType.Table)
           {
-            throwTomlSerializerException(parserState, $"Token '{key}' exists and has type '{token.TokenType}'. Expected token type: 'Table'");
+            throwTomlSerializerException(parserState, $"Cannot define table '{key}': the key already exists as '{token.TokenType}'.");
           }
         }
         else
@@ -2112,7 +2127,7 @@ namespace RStein.TOML
         var tableToken = (TomlTable) token;
         if (tableToken.HasTopLevelDefinition || tableToken.HasFromKeyDefinition)
         {
-          throwTomlSerializerException(parserState, $"Redefinition of table '{tableToken.Name}' is not allowed.");
+          throwTomlSerializerException(parserState, $"Redefinition of table '{key}' is not allowed.");
         }
 
         await advance(parserState, useAsync).ConfigureAwait(false);
@@ -2125,7 +2140,7 @@ namespace RStein.TOML
         {
           if (parserState.CurrentChar != '#' && !isNewLineChar(parserState.CurrentChar))
           {
-            throwTomlSerializerException(parserState, INVALID_TOML_ARRAY_DEFINITION_ERROR);
+            throwTomlSerializerException(parserState, $"Expected end of line or comment after the table header, but found {describeChar(parserState.CurrentChar)}.");
           }
 
           if (parserState.CurrentChar == '#')
@@ -2163,7 +2178,7 @@ namespace RStein.TOML
 
           if (!isAllowedCommentChar(parserState.CurrentChar))
           {
-            throwTomlSerializerException(parserState, $"Found disallowed char '{(int)parserState.CurrentChar:x}' in comment.");
+            throwTomlSerializerException(parserState, $"Control character {describeChar(parserState.CurrentChar)} is not allowed in a comment.");
           }
 
           commentBuilder.Append(parserState.CurrentChar);
@@ -2183,9 +2198,41 @@ namespace RStein.TOML
     private static void throwTomlSerializerException<TInputReader>(ParserState<TInputReader> parserState, string innerMessage = "")
       where TInputReader : struct, IInputReader
     {
-       var exceptionMessage = $"TOML document is invalid. {innerMessage} Line: {parserState.CurrentLine} Column: {parserState.CurrentColumn}";
+      var exceptionMessage = $"TOML document is invalid. {innerMessage} (line {parserState.CurrentLine}, column {parserState.CurrentColumn})";
       throw new TomlSerializerException(exceptionMessage);
     }
+
+    private static string describeChar(char ch)
+    {
+      switch (ch)
+      {
+        case '\n':
+          return "newline";
+        case '\r':
+          return "carriage return";
+        case '\t':
+          return "tab";
+      }
+
+      return char.IsControl(ch) || char.IsSurrogate(ch) || ch == '�'
+        ? $"U+{(int) ch:X4}"
+        : $"'{ch}'";
+    }
+
+    //Describes the current char; when it is a digit, the following digit (if any) is included to show the whole number.
+    private static string describeDigitPair<TInputReader>(ParserState<TInputReader> parserState)
+      where TInputReader : struct, IInputReader
+    {
+      var next = peek(parserState);
+      return char.IsDigit(parserState.CurrentChar) && next != null && char.IsDigit(next.Value)
+        ? $"'{parserState.CurrentChar}{next.Value}'"
+        : describeChar(parserState.CurrentChar);
+    }
+
+    private static string describeChar(char? ch) => ch == null ? "end of document" : describeChar(ch.Value);
+
+    private static string describeCurrentChar<TInputReader>(ParserState<TInputReader> parserState)
+      where TInputReader : struct, IInputReader => parserState.Eof ? "end of document" : describeChar(parserState.CurrentChar);
 
     private static bool isAllowedCommentChar(char parserStateCurrentChar)
     {
@@ -2221,22 +2268,56 @@ namespace RStein.TOML
                                                    || parserState.CurrentChar == '\n';
     
 
-    private static void throwIfEof<TInputReader>(ParserState<TInputReader> parserState)
+    private static void throwIfEof<TInputReader>(ParserState<TInputReader> parserState, string? expected = null)
       where TInputReader : struct, IInputReader
     {
       if (parserState.Eof)
       {
-        throwEof(parserState);
+        throwEof(parserState, expected);
       }
     }
 
 #if NET9_0_OR_GREATER
     [DoesNotReturn]
 #endif
-    private static void throwEof<TInputReader>(ParserState<TInputReader> parserState)
+    private static void throwEof<TInputReader>(ParserState<TInputReader> parserState, string? expected = null, bool reportOpenConstruct = true)
       where TInputReader : struct, IInputReader
     {
-      throwTomlSerializerException(parserState, UNEXPECTED_END_OF_TOML_DOCUMENT_ERROR);
+      var message = new StringBuilder(UNEXPECTED_END_OF_TOML_DOCUMENT_ERROR);
+      if (expected != null)
+      {
+        message.Append(", expected ").Append(expected);
+      }
+
+      if (reportOpenConstruct && parserState.OpenConstructs.Count > 0)
+      {
+        var (name, line, column) = parserState.OpenConstructs.Peek();
+        message.Append(": unterminated ").Append(name).Append(" that started at line ").Append(line).Append(", column ").Append(column);
+      }
+
+      message.Append('.');
+      throwTomlSerializerException(parserState, message.ToString());
+    }
+
+    private static void enterConstruct<TInputReader>(ParserState<TInputReader> parserState, string name)
+      where TInputReader : struct, IInputReader
+    {
+      enterConstruct(parserState, name, parserState.CurrentLine, parserState.CurrentColumn);
+    }
+
+    private static void enterConstruct<TInputReader>(ParserState<TInputReader> parserState,
+                                                     string name,
+                                                     int line,
+                                                     int column)
+      where TInputReader : struct, IInputReader
+    {
+      parserState.OpenConstructs.Push((name, line, column));
+    }
+
+    private static void exitConstruct<TInputReader>(ParserState<TInputReader> parserState)
+      where TInputReader : struct, IInputReader
+    {
+      parserState.OpenConstructs.Pop();
     }
 
     private static async ValueTask skipWhitespacesAndNewLines<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
@@ -2260,7 +2341,7 @@ namespace RStein.TOML
         }
         else
         {
-          throwTomlSerializerException(parserState, @"Invalid bare-cr ('\r') char. Expected '\r\n' or '\n'.S");
+          throwTomlSerializerException(parserState, @"Invalid bare carriage return ('\r'). Expected '\r\n' or '\n'.");
         }
       }
 
@@ -2288,18 +2369,21 @@ namespace RStein.TOML
             : parserState.ReadChar()) != null)
       {
         parserState.CurrentChar = readC.Value;
-        if (parserState.CurrentChar == '\uFFFD')
+        if (parserState.PendingNewLine)
         {
-          throwTomlSerializerException(parserState, "Found invalid utf-8 char (\uFFFD).");
-        }
-        ++parserState.CurrentColumn;
-
-        if (!parserState.ParsingString && parserState.CurrentChar == '\n')
-        {
+          //The newline char itself still belongs to the line it terminates.
+          parserState.PendingNewLine = false;
           ++parserState.CurrentLine;
           parserState.CurrentColumn = 0;
         }
 
+        ++parserState.CurrentColumn;
+        if (parserState.CurrentChar == '\uFFFD')
+        {
+          throwTomlSerializerException(parserState, "The input contains the Unicode replacement character U+FFFD, which usually means invalid UTF-8 encoding.");
+        }
+
+        parserState.PendingNewLine = parserState.CurrentChar == '\n';
         return true;
       }
 
@@ -2362,7 +2446,18 @@ namespace RStein.TOML
     {
       get;
       set;
+    } = 1;
+
+    public bool PendingNewLine
+    {
+      get;
+      set;
     }
+
+    public Stack<(string Name, int Line, int Column)> OpenConstructs
+    {
+      get;
+    } = new Stack<(string Name, int Line, int Column)>();
 
     public int CurrentColumn
     {
@@ -2381,12 +2476,6 @@ namespace RStein.TOML
       get;
       set;
     } = new StringBuilder();
-
-    public bool ParsingString
-    {
-      get;
-      set;
-    }
 
     public TomlTable RootTomlTable
     {
@@ -2551,13 +2640,14 @@ namespace RStein.TOML
 
     public int Read(ArraySegment<char> buffer)
     {
-      for (var i = 0; i < buffer.Count; ++i)
+      var count = Math.Min(buffer.Count, _inputString.Length - _position);
+      for (var i = 0; i < count; ++i)
       {
         Debug.Assert(buffer.Array != null);
         buffer.Array[buffer.Offset + i] = _inputString[_position++];
       }
 
-      return buffer.Count;
+      return count;
     }
   }
 #pragma warning restore IDE0044
