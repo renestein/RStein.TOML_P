@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 
 namespace RStein.TOML
 {
@@ -155,10 +156,35 @@ namespace RStein.TOML
       }
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Returns the key as it is written in a TOML document, including all dotted parts, for example <c>a."b.c".d</c>.
+    /// </summary>
+    /// <returns>The dotted TOML representation of this key.</returns>
     public override string ToString()
     {
-      return $"{nameof(RawKey)}: {RawKey}, {nameof(Type)}: {Type}, {nameof(IsDottedKey)}: {IsDottedKey}, {nameof(IsQuotedKey)}: {IsQuotedKey}, {nameof(IsQuotedLiteralStringKey)}: {IsQuotedLiteralStringKey}, {nameof(IsQuotedBasicStringKey)}: {IsQuotedBasicStringKey}, {nameof(IsUnquotedKey)}: {IsUnquotedKey}";
+      var keyBuilder = new StringBuilder();
+      for (TomlKey? part = this; part != null; part = part.NextKeyPart)
+      {
+        if (!ReferenceEquals(part, this))
+        {
+          keyBuilder.Append('.');
+        }
+
+        switch (part.Type)
+        {
+          case TomlKeyType.SimpleQuotedBasicString:
+            keyBuilder.Append('"').Append(part.RawKey.ToEscapedTomlString()).Append('"');
+            break;
+          case TomlKeyType.SimpleQuotedLiteralString:
+            keyBuilder.Append('\'').Append(part.RawKey).Append('\'');
+            break;
+          default:
+            keyBuilder.Append(part.RawKey);
+            break;
+        }
+      }
+
+      return keyBuilder.ToString();
     }
 
     private TomlKey getLastKeyPart()
