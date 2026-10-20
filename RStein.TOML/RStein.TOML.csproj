@@ -23,7 +23,7 @@
 
 
   <PropertyGroup>
-    <PackageReleaseNotes>See https://github.com/renestein/RStein.TOML_P/releases/tag/v0.0.98.0</PackageReleaseNotes>
+    <PackageReleaseNotes>See https://github.com/renestein/RStein.TOML_P/releases/tag/v1.0.0.0</PackageReleaseNotes>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.0' or '$(TargetFramework)' == 'net48'">
