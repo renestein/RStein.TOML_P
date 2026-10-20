@@ -2199,7 +2199,7 @@ namespace RStein.TOML
       where TInputReader : struct, IInputReader
     {
       var exceptionMessage = $"TOML document is invalid. {innerMessage} (line {parserState.CurrentLine}, column {parserState.CurrentColumn})";
-      throw new TomlSerializerException(exceptionMessage);
+      throw new TomlSerializerException(exceptionMessage, parserState.CurrentLine, parserState.CurrentColumn);
     }
 
     private static string describeChar(char ch)
