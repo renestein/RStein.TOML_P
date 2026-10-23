@@ -11,6 +11,7 @@ internal class TomlWriterTest
     Assert.Throws<ArgumentNullException>(() => new TomlWriter(null!));
   }
 
+#if DEBUG
   [Test]
   public void LastState_When_Created_Then_Is_Idle()
   {
@@ -18,6 +19,7 @@ internal class TomlWriterTest
 
     Assert.That(writer.LastState, Is.EqualTo(TomlWriterState.Idle));
   }
+#endif
 
   [Test]
   public void Comment_When_Written_Sync_Then_Text_Is_Written_Once_And_State_Is_Restored()
@@ -28,11 +30,15 @@ internal class TomlWriterTest
     writer.BeginTomlDocument();
 
     writer.BeginWriteComment(comment);
+#if DEBUG
     Assert.That(writer.LastState, Is.EqualTo(TomlWriterState.WritingComment));
+#endif
     writer.EndWriteComment(comment);
 
     Assert.That(stringWriter.ToString(), Is.EqualTo("#  text"));
+#if DEBUG
     Assert.That(writer.LastState, Is.EqualTo(TomlWriterState.WritingTomlDocument));
+#endif
   }
 
   [Test]
@@ -44,11 +50,15 @@ internal class TomlWriterTest
     await writer.BeginTomlDocumentAsync().ConfigureAwait(false);
 
     await writer.BeginWriteCommentAsync(comment).ConfigureAwait(false);
+#if DEBUG
     Assert.That(writer.LastState, Is.EqualTo(TomlWriterState.WritingComment));
+#endif
     await writer.EndWriteCommentAsync(comment).ConfigureAwait(false);
 
     Assert.That(stringWriter.ToString(), Is.EqualTo("#  text"));
+#if DEBUG
     Assert.That(writer.LastState, Is.EqualTo(TomlWriterState.WritingTomlDocument));
+#endif
   }
 
   [Test]
@@ -231,6 +241,7 @@ internal class TomlWriterTest
     Assert.That(asyncText, Is.EqualTo(expected));
   }
 
+#if DEBUG
   [Test]
   public void HasState_When_State_Is_On_Stack_Then_Returns_True()
   {
@@ -241,6 +252,49 @@ internal class TomlWriterTest
     Assert.That(writer.HasState(TomlWriterState.WritingInlineTable), Is.True);
     Assert.That(writer.HasState(TomlWriterState.WritingTomlDocument), Is.True);
     Assert.That(writer.HasState(TomlWriterState.WritingArray), Is.False);
+  }
+#endif
+
+  [Test]
+  public void IsInsideInlineTable_When_Inline_Table_Is_Open_Then_Returns_True_Until_It_Is_Closed()
+  {
+    var inlineTable = new TomlInlineTable();
+    var writer = new TomlWriter(new StringWriter());
+    writer.BeginTomlDocument();
+    Assert.That(writer.IsInsideInlineTable, Is.False);
+
+    writer.BeginWriteInlineTable(inlineTable);
+    Assert.That(writer.IsInsideInlineTable, Is.True);
+
+    writer.BeginWriteInlineTableItem(default, true);
+    writer.BeginWriteInlineTable(inlineTable);
+    writer.EndWriteInlineTable(inlineTable);
+    Assert.That(writer.IsInsideInlineTable, Is.True);
+    writer.EndWriteInlineTableItem(default, true);
+
+    writer.EndWriteInlineTable(inlineTable);
+    Assert.That(writer.IsInsideInlineTable, Is.False);
+  }
+
+  [Test]
+  public void IsAtDocumentLevel_When_Table_Or_ArrayOfTables_Is_Open_Then_Returns_False_Until_It_Is_Closed()
+  {
+    var table = new TomlTable("t");
+    var arrayOfTables = new TomlArrayOfTables("a");
+    var writer = new TomlWriter(new StringWriter());
+    writer.BeginTomlDocument();
+    Assert.That(writer.IsAtDocumentLevel, Is.True);
+
+    writer.BeginWriteArrayOfTables(arrayOfTables, new TomlKey("a"));
+    Assert.That(writer.IsAtDocumentLevel, Is.False);
+
+    writer.BeginWriteTable(table, new TomlKey("a.t"));
+    Assert.That(writer.IsAtDocumentLevel, Is.False);
+    writer.EndWriteTable(table);
+
+    Assert.That(writer.IsAtDocumentLevel, Is.False);
+    writer.EndWriteArrayOfTables(arrayOfTables);
+    Assert.That(writer.IsAtDocumentLevel, Is.True);
   }
 
   private static string writeSync(Action<TomlWriter> action)
