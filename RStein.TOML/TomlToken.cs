@@ -741,7 +741,7 @@ namespace RStein.TOML
               case TomlDataType.Unspecified:
                 break;
               case TomlDataType.IntegerDec:
-                return uint.Parse(primitiveValue.Value, CultureInfo.InvariantCulture);
+                return ulong.Parse(primitiveValue.Value, CultureInfo.InvariantCulture);
               case TomlDataType.IntegerHex:
                 return Convert.ToUInt64(primitiveValue.Value, fromBase: 16);
               case TomlDataType.IntegerOct:
