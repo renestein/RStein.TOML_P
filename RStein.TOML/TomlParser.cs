@@ -96,7 +96,7 @@ namespace RStein.TOML
       tomlSettings = tomlSettings ?? TomlSettings.Default;
       using (var reader = new StreamReader(tomlStream, Encoding.UTF8))
       {
-        var parserState = new ParserState<TextInputReader>(new TextInputReader(reader), tomlSettings)
+        var parserState = new ParserState<BufferedTextInputReader>(new BufferedTextInputReader(reader, cancellationToken), tomlSettings)
         {
           CancellationToken = cancellationToken
         };
@@ -2842,6 +2842,176 @@ namespace RStein.TOML
     }
 
     public void Skip(int count) => throw new NotSupportedException();
+  }
+
+  /// <summary>
+  /// Input reader for async parsing of a <see cref="TextReader"/>. It reads the text in chunks, so there is no async call
+  /// per char, <see cref="Peek"/> never touches the underlying reader (no hidden synchronous I/O in an async parse)
+  /// and the cancellation token reaches the reads of the underlying stream.
+  /// </summary>
+  internal struct BufferedTextInputReader : IInputReader
+  {
+    private TextReaderBuffer _buffer;
+
+    public BufferedTextInputReader(TextReader reader, CancellationToken cancellationToken)
+    {
+      Debug.Assert(reader != null);
+      _buffer = new TextReaderBuffer(reader, cancellationToken);
+    }
+
+    public char? ReadChar() => _buffer.ReadChar();
+
+    public ValueTask<char?> ReadCharAsync() => _buffer.ReadCharAsync();
+
+    public char? Peek() => _buffer.Peek();
+
+    public ValueTask<int> ReadAsync(ArraySegment<char> buffer) => _buffer.ReadAsync(buffer);
+
+    public int Read(ArraySegment<char> buffer) => _buffer.Read(buffer);
+
+    public bool TryGetInput(out string input, out int currentCharIndex)
+    {
+      input = string.Empty;
+      currentCharIndex = 0;
+      return false;
+    }
+
+    public void Skip(int count) => throw new NotSupportedException();
+  }
+
+  /// <summary>
+  /// The state lives in a class because the async methods must be able to change it (a struct would be copied into the async state machine).
+  /// The buffer is refilled as soon as its last char is consumed, so <c>_position == _length</c> always means the end of the input
+  /// (once the first char was read) and <see cref="Peek"/> never needs to read.
+  /// </summary>
+  internal sealed class TextReaderBuffer
+  {
+    private const int BUFFER_SIZE = 1024;
+    private readonly TextReader _reader;
+    private readonly CancellationToken _cancellationToken;
+    private readonly char[] _chars = new char[BUFFER_SIZE];
+    private int _position;
+    private int _length;
+
+    public TextReaderBuffer(TextReader reader, CancellationToken cancellationToken)
+    {
+      _reader = reader;
+      _cancellationToken = cancellationToken;
+    }
+
+    public char? ReadChar()
+    {
+      if (_position >= _length && !fill())
+      {
+        return null;
+      }
+
+      var readC = _chars[_position++];
+      if (_position == _length)
+      {
+        fill();
+      }
+
+      return readC;
+    }
+
+    public ValueTask<char?> ReadCharAsync()
+    {
+      if (_position < _length - 1)
+      {
+        return new ValueTask<char?>(_chars[_position++]);
+      }
+
+      return readCharSlowAsync();
+    }
+
+    public char? Peek() => _position < _length
+      ? _chars[_position]
+      : (char?) null;
+
+    public int Read(ArraySegment<char> destination)
+    {
+      var total = 0;
+      while (total < destination.Count)
+      {
+        if (_position >= _length && !fill())
+        {
+          break;
+        }
+
+        total += copyTo(destination, total);
+        if (_position == _length)
+        {
+          fill();
+        }
+      }
+
+      return total;
+    }
+
+    public async ValueTask<int> ReadAsync(ArraySegment<char> destination)
+    {
+      var total = 0;
+      while (total < destination.Count)
+      {
+        if (_position >= _length && !await fillAsync().ConfigureAwait(false))
+        {
+          break;
+        }
+
+        total += copyTo(destination, total);
+        if (_position == _length)
+        {
+          await fillAsync().ConfigureAwait(false);
+        }
+      }
+
+      return total;
+    }
+
+    private async ValueTask<char?> readCharSlowAsync()
+    {
+      if (_position >= _length && !await fillAsync().ConfigureAwait(false))
+      {
+        return null;
+      }
+
+      var readC = _chars[_position++];
+      if (_position == _length)
+      {
+        await fillAsync().ConfigureAwait(false);
+      }
+
+      return readC;
+    }
+
+    private int copyTo(ArraySegment<char> destination, int alreadyCopied)
+    {
+      var count = Math.Min(destination.Count - alreadyCopied, _length - _position);
+      Array.Copy(_chars, _position, destination.Array!, destination.Offset + alreadyCopied, count);
+      _position += count;
+      return count;
+    }
+
+    private bool fill()
+    {
+      _cancellationToken.ThrowIfCancellationRequested();
+      _length = _reader.Read(_chars, 0, _chars.Length);
+      _position = 0;
+      return _length > 0;
+    }
+
+    private async ValueTask<bool> fillAsync()
+    {
+      _cancellationToken.ThrowIfCancellationRequested();
+#if NET9_0_OR_GREATER
+      _length = await _reader.ReadAsync(_chars.AsMemory(), _cancellationToken).ConfigureAwait(false);
+#else
+      _length = await _reader.ReadAsync(_chars, 0, _chars.Length).ConfigureAwait(false);
+#endif
+      _position = 0;
+      return _length > 0;
+    }
   }
 
   internal struct StringInputReader : IInputReader
