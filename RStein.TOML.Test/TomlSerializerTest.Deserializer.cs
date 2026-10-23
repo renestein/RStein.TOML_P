@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using RStein.TOML.Test.Helpers;
 
 namespace RStein.TOML.Test;
 
@@ -1505,5 +1506,77 @@ internal partial class TomlSerializerTest
 
     Assert.Fail("Expected a TomlSerializerException.");
     return null!;
+  }
+
+  private const string TOML_FOR_CHUNKED_STREAM = """"
+                                                 title = "chunked"
+                                                 ml_basic = """
+                                                 line 1
+                                                 line 2 with \u00E9 and \U000000E9 escapes
+                                                 """
+                                                 ml_literal = '''raw \n text'''
+                                                 empty_basic = ""
+                                                 empty_literal = ''
+                                                 'quoted key' = "value" # comment
+
+                                                 [table.sub]
+                                                 numbers = [1, 2, 3]
+                                                 inline = { a = 1, b = "two" }
+
+                                                 [[items]]
+                                                 name = "first"
+
+                                                 [[items]]
+                                                 name = "second"
+                                                 """";
+
+  [TestCase(1)]
+  [TestCase(2)]
+  [TestCase(3)]
+  [TestCase(7)]
+  [TestCase(64)]
+  [TestCase(100000)]
+  public async Task Deserialize_When_Stream_Returns_Small_Chunks_Then_Returns_Same_Result_As_String(int maxChunkSize)
+  {
+    var expected = TomlSerializer.SerializeToString(TomlSerializer.Deserialize(TOML_FOR_CHUNKED_STREAM));
+    var bytes = Encoding.UTF8.GetBytes(TOML_FOR_CHUNKED_STREAM);
+
+    using var syncStream = new ChunkedTestStream(bytes, maxChunkSize);
+    var syncResult = TomlSerializer.Deserialize(syncStream);
+    using var asyncStream = new ChunkedTestStream(bytes, maxChunkSize);
+    var asyncResult = await TomlSerializer.DeserializeAsync(asyncStream).ConfigureAwait(false);
+
+    Assert.That(TomlSerializer.SerializeToString(syncResult), Is.EqualTo(expected));
+    Assert.That(TomlSerializer.SerializeToString(asyncResult), Is.EqualTo(expected));
+  }
+
+  [TestCase(1)]
+  [TestCase(7)]
+  [TestCase(64)]
+  [TestCase(100000)]
+  public async Task DeserializeAsync_When_Stream_Does_Not_Allow_Synchronous_Reads_Then_Returns_Same_Result_As_String(int maxChunkSize)
+  {
+    var expected = TomlSerializer.SerializeToString(TomlSerializer.Deserialize(TOML_FOR_CHUNKED_STREAM));
+    using var stream = new ChunkedTestStream(Encoding.UTF8.GetBytes(TOML_FOR_CHUNKED_STREAM), maxChunkSize, allowSyncReads: false);
+
+    var result = await TomlSerializer.DeserializeAsync(stream).ConfigureAwait(false);
+
+    Assert.That(TomlSerializer.SerializeToString(result), Is.EqualTo(expected));
+    Assert.That(stream.SyncReadCount, Is.EqualTo(0));
+  }
+
+  [Test]
+  public async Task DeserializeAsync_When_Stream_Stalls_And_CancellationToken_Cancelled_Then_Throws_OperationCanceledException()
+  {
+    var bytes = Encoding.UTF8.GetBytes(TOML_FOR_CHUNKED_STREAM);
+    using var stream = new ChunkedTestStream(bytes, maxChunkSize: 16, stallAfterBytes: bytes.Length / 2);
+    using var cts = new CancellationTokenSource();
+    cts.CancelAfter(TimeSpan.FromMilliseconds(200));
+
+    var parseTask = TomlSerializer.DeserializeAsync(stream, cts.Token);
+    var completedTask = await Task.WhenAny(parseTask, Task.Delay(TimeSpan.FromSeconds(10))).ConfigureAwait(false);
+
+    Assert.That(completedTask, Is.SameAs(parseTask), "The parsing did not stop after the cancellation.");
+    Assert.That(async () => await parseTask.ConfigureAwait(false), Throws.InstanceOf<OperationCanceledException>());
   }
 }
