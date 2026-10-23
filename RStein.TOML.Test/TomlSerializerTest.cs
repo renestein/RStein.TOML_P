@@ -575,6 +575,29 @@ internal partial class TomlSerializerTest
     Assert.That(areParsedTomlEquals);
   }
 
+  [TestCase(3.14, "3.14")]
+  [TestCase(3.0, "3.0")]
+  [TestCase(-0.01, "-0.01")]
+  [TestCase(1e20, "1E+20")]
+  [TestCase(6.626e-34, "6.626E-34")]
+  [TestCase(double.MaxValue, "1.7976931348623157E+308")]
+  [TestCase(double.Epsilon, "5E-324")]
+  public async Task SerializeToStringAsync_When_Float_Then_Is_Written_In_Readable_Form_And_Round_Trips(double value, string expectedText)
+  {
+    var tomlTable = new TomlTable {{"x", new TomlPrimitiveValue(value)}};
+
+    var asyncToml = await TomlSerializer.SerializeToStringAsync(tomlTable).ConfigureAwait(false);
+    var syncToml = TomlSerializer.SerializeToString(tomlTable);
+
+    await TestContext.Out.WriteLineAsync(asyncToml).ConfigureAwait(false);
+    Assert.That(asyncToml, Does.Contain($"x = {expectedText}"));
+    Assert.That(syncToml, Is.EqualTo(asyncToml));
+    var deserialized = await TomlSerializer.DeserializeAsync(asyncToml).ConfigureAwait(false);
+    var deserializedValue = (TomlPrimitiveValue) deserialized["x"];
+    Assert.That(deserializedValue.Type, Is.EqualTo(TomlValueType.Float));
+    Assert.That((double?) deserializedValue, Is.EqualTo(value));
+  }
+
   [Test]
   public async Task SerializeToStringAsync_When_Not_Configured_Table_Added_To_Root_Table_Then_Has_Top_Level_Definition()
   {
