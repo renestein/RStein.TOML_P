@@ -593,8 +593,15 @@ namespace RStein.TOML
       }
       else
       {
-        await _textWriter.WriteAsync($"{((double)tomlPrimitiveValue!).ToString("e15", CultureInfo.InvariantCulture)}").ConfigureAwait(false);
+        await _textWriter.WriteAsync(formatFloat((double) tomlPrimitiveValue!)).ConfigureAwait(false);
       }
+    }
+
+    private static string formatFloat(double value)
+    {
+      var text = value.ToString("R", CultureInfo.InvariantCulture);
+      // TOML requires a fractional part and/or exponent; "3" would read back as an integer.
+      return text.IndexOfAny(new[] { '.', 'E', 'e' }) < 0 ? text + ".0" : text;
     }
 
     private async ValueTask writeDateTimeValueAsync(TomlPrimitiveValue tomlPrimitiveValue)
@@ -696,7 +703,7 @@ namespace RStein.TOML
       }
       else
       {
-        _textWriter.Write($"{((double)tomlPrimitiveValue!).ToString("e15", CultureInfo.InvariantCulture)}");
+        _textWriter.Write(formatFloat((double) tomlPrimitiveValue!));
       }
     }
 
