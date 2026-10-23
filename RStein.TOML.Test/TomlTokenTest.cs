@@ -435,29 +435,51 @@ internal class TomlTokenTest
   }
 
   [Test]
-  public async Task DeepEqualsAsync_When_Table_And_Inline_Table_Have_Same_Content_Then_Result_Is_Symmetric()
+  public async Task DeepEqualsAsync_When_Table_Is_Compared_With_Inline_Table_Having_Same_Content_Then_Returns_False()
   {
     var table = new TomlTable("t") {{"x", 1}};
     var inlineTable = new TomlInlineTable("t") {{"x", 1}};
 
-    var tableToInline = await table.DeepEqualsAsync(inlineTable).ConfigureAwait(false);
-    var inlineToTable = await inlineTable.DeepEqualsAsync(table).ConfigureAwait(false);
+    var result = await table.DeepEqualsAsync(inlineTable).ConfigureAwait(false);
 
-    Assert.That(tableToInline, Is.EqualTo(inlineToTable));
+    Assert.That(result, Is.False);
   }
 
   [Test]
-  public async Task DeepEqualsAsync_When_Array_And_Array_Of_Tables_Have_Same_Content_Then_Result_Is_Symmetric()
+  public async Task DeepEqualsAsync_When_Inline_Table_Is_Compared_With_Table_Having_Same_Content_Then_Returns_False()
+  {
+    var table = new TomlTable("t") {{"x", 1}};
+    var inlineTable = new TomlInlineTable("t") {{"x", 1}};
+
+    var result = await inlineTable.DeepEqualsAsync(table).ConfigureAwait(false);
+
+    Assert.That(result, Is.False);
+  }
+
+  [Test]
+  public async Task DeepEqualsAsync_When_Array_Is_Compared_With_Array_Of_Tables_Having_Same_Content_Then_Returns_False()
   {
     var array = new TomlArray(new TomlKey("a"));
     var arrayOfTables = new TomlArrayOfTables("a");
     array.Add(new TomlTable("t") {{"x", 1}});
     arrayOfTables.Add(new TomlTable("t") {{"x", 1}});
 
-    var arrayToArrayOfTables = await array.DeepEqualsAsync(arrayOfTables).ConfigureAwait(false);
-    var arrayOfTablesToArray = await arrayOfTables.DeepEqualsAsync(array).ConfigureAwait(false);
+    var result = await array.DeepEqualsAsync(arrayOfTables).ConfigureAwait(false);
 
-    Assert.That(arrayToArrayOfTables, Is.EqualTo(arrayOfTablesToArray));
+    Assert.That(result, Is.False);
+  }
+
+  [Test]
+  public async Task DeepEqualsAsync_When_Array_Of_Tables_Is_Compared_With_Array_Having_Same_Content_Then_Returns_False()
+  {
+    var array = new TomlArray(new TomlKey("a"));
+    var arrayOfTables = new TomlArrayOfTables("a");
+    array.Add(new TomlTable("t") {{"x", 1}});
+    arrayOfTables.Add(new TomlTable("t") {{"x", 1}});
+
+    var result = await arrayOfTables.DeepEqualsAsync(array).ConfigureAwait(false);
+
+    Assert.That(result, Is.False);
   }
 
   [Test]
