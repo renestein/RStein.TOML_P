@@ -563,6 +563,21 @@ namespace RStein.TOML
     }
 
     /// <summary>
+    /// Attempts to get the value associated with the specified key.
+    /// </summary>
+    /// <param name="key">The key as a string.</param>
+    /// <param name="value">The value associated with the key, if found; otherwise, <c>null</c>.</param>
+    /// <returns><c>true</c> if the key is found; otherwise, <c>false</c>.</returns>
+    public bool TryGetValue(string key,
+#if NET9_0_OR_GREATER
+                          [MaybeNullWhen(false)]
+#endif //NET9_0_OR_GREATER
+                            out TomlToken value)
+    {
+      return TryGetValue(new TomlKey(key), out value);
+    }
+
+    /// <summary>
     /// Gets or sets the value associated with the specified key using a <see cref="TomlKey"/>.
     /// </summary>
     /// <param name="key">The key as a <see cref="TomlKey"/> object.</param>
