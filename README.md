@@ -131,7 +131,7 @@ count = 3
 int count = table.ContainsKey("count") ? ((int?)table["count"]) ?? 0 : 0;
 bool enabled = table.ContainsKey("enabled") ? ((bool?)table["enabled"]) ?? false : false;
 
-if (table.TryGetValue(new TomlKey("count"), out var countNode))
+if (table.TryGetValue("count", out var countNode))
 {
     Console.WriteLine((int?)countNode);
 }
