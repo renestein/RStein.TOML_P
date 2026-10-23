@@ -61,7 +61,7 @@ namespace RStein.TOML
         return;
       }
 
-      if (!(context.OtherToken is TomlTable secondTable))
+      if (!(context.OtherToken is TomlTable secondTable) || secondTable.TokenType != tomlTable.TokenType)
       {
         context.DeepEqualsResult = false;
         return;
@@ -143,7 +143,7 @@ namespace RStein.TOML
         return;
       }
 
-      if (!(context.OtherToken is TomlArray secondArray))
+      if (!(context.OtherToken is TomlArray secondArray) || secondArray.TokenType != tomlArray.TokenType)
       {
         context.DeepEqualsResult = false;
         return;
