@@ -982,6 +982,24 @@ internal partial class TomlSerializerTest
     await Assert.CatchAsync<TomlSerializerException>(async () => _ = await left.DeepEqualsAsync(right).ConfigureAwait(false)).ConfigureAwait(false);
   }
 
+  [Test]
+  public async Task SerializeToString_When_Bare_ArrayOfTables_Then_Starts_With_Single_Blank_Line_And_Separates_Items()
+  {
+    var expected = Environment.NewLine + "[[a]]" + Environment.NewLine + "x = 0" + Environment.NewLine +
+                   Environment.NewLine + "[[a]]" + Environment.NewLine + "x = 1" + Environment.NewLine;
+    var arrayOfTables = new TomlArrayOfTables("a");
+    for (var i = 0; i < 2; i++)
+    {
+      arrayOfTables.Add(new TomlTable("a") {{"x", new TomlPrimitiveValue(i)}});
+    }
+
+    var syncToml = TomlSerializer.SerializeToString(arrayOfTables);
+    var asyncToml = await TomlSerializer.SerializeToStringAsync(arrayOfTables).ConfigureAwait(false);
+
+    Assert.That(syncToml, Is.EqualTo(expected));
+    Assert.That(asyncToml, Is.EqualTo(expected));
+  }
+
 #if NET9_0_OR_GREATER
   [Test]
   public void SerializeToString_When_DateOnly_Then_Writes_Local_Date()
