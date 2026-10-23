@@ -38,6 +38,7 @@ namespace RStein.TOML
 
     public async ValueTask<TomlWriter> BeginWriteKeyAsync(TomlKey tomlKey)
     {
+      Debug.Assert(tomlKey != null);
       var tomlWriterState = _tomlWriterState.Peek();
       Debug.Assert(tomlWriterState == TomlWriterState.WritingTomlDocument ||
                   tomlWriterState == TomlWriterState.WritingTable ||
@@ -57,31 +58,7 @@ namespace RStein.TOML
 
     public ValueTask<TomlWriter> EndWriteKeyAsync(TomlKey tomlKey)
     {
-      Debug.Assert(_tomlWriterState.Peek() == TomlWriterState.WritingKey);
-      _tomlWriterState.Pop();
-      return new ValueTask<TomlWriter>(this);
-    }
-
-    public async ValueTask<TomlWriter> BeginWriteKeyAsync(string tomlKey, TomlDataType tomlDataType)
-    {
-      var tomlWriterState = _tomlWriterState.Peek();
-      Debug.Assert(tomlWriterState == TomlWriterState.WritingTomlDocument ||
-                   tomlWriterState == TomlWriterState.WritingTable ||
-                   tomlWriterState == TomlWriterState.WritingInlineTableItem);
-
-      if (tomlWriterState != TomlWriterState.WritingInlineTableItem)
-      {
-        await _textWriter.WriteLineAsync().ConfigureAwait(false);
-      }
-
-      await writeStringAsync(tomlKey, tomlDataType).ConfigureAwait(false);
-      await _textWriter.WriteAsync(" = ").ConfigureAwait(false);
-      _tomlWriterState.Push(TomlWriterState.WritingKey);
-      return this;
-    }
-
-    public ValueTask<TomlWriter> EndWriteKeyAsync(string tomlKey)
-    {
+      Debug.Assert(tomlKey != null);
       Debug.Assert(_tomlWriterState.Peek() == TomlWriterState.WritingKey);
       _tomlWriterState.Pop();
       return new ValueTask<TomlWriter>(this);
@@ -89,6 +66,7 @@ namespace RStein.TOML
 
     public async ValueTask<TomlWriter> BeginWritePrimitiveValueAsync(TomlPrimitiveValue tomlPrimitiveValue)
     {
+      Debug.Assert(tomlPrimitiveValue != null);
       var tomlWriterState = _tomlWriterState.Peek();
       Debug.Assert(tomlWriterState == TomlWriterState.WritingTomlDocument ||
                    tomlWriterState == TomlWriterState.WritingTable ||
@@ -130,6 +108,7 @@ namespace RStein.TOML
     public async ValueTask<TomlWriter> BeginWriteTableAsync(TomlTable tomlTable,
                                                             TomlKey tableKey)
     {
+      Debug.Assert(tableKey != null);
       var tomlWriterState = _tomlWriterState.Peek();
       Debug.Assert(tomlWriterState == TomlWriterState.WritingTomlDocument ||
                    tomlWriterState == TomlWriterState.WritingArrayOfTables);
@@ -189,18 +168,21 @@ namespace RStein.TOML
 
     public async ValueTask<TomlWriter> WriteAsync(string text)
     {
+      Debug.Assert(_tomlWriterState.Peek() != TomlWriterState.Idle);
       await _textWriter.WriteAsync(text).ConfigureAwait(false);
       return this;
     }
 
     public async ValueTask<TomlWriter> WriteLineAsync(string text)
     {
+      Debug.Assert(_tomlWriterState.Peek() != TomlWriterState.Idle);
       await _textWriter.WriteLineAsync(text).ConfigureAwait(false);
       return this;
     }
 
     public async ValueTask<TomlWriter> WriteLineAsync()
     {
+      Debug.Assert(_tomlWriterState.Peek() != TomlWriterState.Idle);
       await _textWriter.WriteLineAsync().ConfigureAwait(false);
       return this;
     }
@@ -208,14 +190,11 @@ namespace RStein.TOML
     public async ValueTask<TomlWriter> BeginWriteArrayOfTablesAsync(TomlArrayOfTables table,
                                                                     TomlKey fullKey)
     {
+      Debug.Assert(fullKey != null);
       var tomlWriterState = _tomlWriterState.Peek();
       Debug.Assert(tomlWriterState == TomlWriterState.WritingTomlDocument || tomlWriterState == TomlWriterState.WritingTable || tomlWriterState == TomlWriterState.WritingArrayOfTables);
 
-      if (tomlWriterState != TomlWriterState.Idle)
-      {
-        await _textWriter.WriteLineAsync().ConfigureAwait(false);
-      }
-
+      await _textWriter.WriteLineAsync().ConfigureAwait(false);
       await _textWriter.WriteAsync("[[").ConfigureAwait(false);
       await writeKeyAsync(fullKey).ConfigureAwait(false);
       await _textWriter.WriteAsync("]]").ConfigureAwait(false);
@@ -274,15 +253,18 @@ namespace RStein.TOML
 
     public async ValueTask BeginWriteCommentAsync(TomlComment tomlComment)
     {
+      Debug.Assert(tomlComment != null);
+      assertCanWriteComment();
       _tomlWriterState.Push(TomlWriterState.WritingComment);
       await _textWriter.WriteAsync($"# {tomlComment.Value}").ConfigureAwait(false);
     }
 
-    public async ValueTask EndWriteCommentAsync(TomlComment tomlComment)
+    public ValueTask EndWriteCommentAsync(TomlComment tomlComment)
     {
-      Debug.Assert(_tomlWriterState.Pop() == TomlWriterState.WritingComment);
-      await _textWriter.WriteAsync($"# {tomlComment.Value}").ConfigureAwait(false);
+      Debug.Assert(tomlComment != null);
+      Debug.Assert(_tomlWriterState.Peek() == TomlWriterState.WritingComment);
       _tomlWriterState.Pop();
+      return default;
     }
 
     #endregion
@@ -297,6 +279,7 @@ namespace RStein.TOML
 
     public void BeginWriteKey(TomlKey tomlKey)
     {
+      Debug.Assert(tomlKey != null);
       var tomlWriterState = _tomlWriterState.Peek();
       Debug.Assert(tomlWriterState == TomlWriterState.WritingTomlDocument ||
                   tomlWriterState == TomlWriterState.WritingTable ||
@@ -315,35 +298,14 @@ namespace RStein.TOML
 
     public void EndWriteKey(TomlKey tomlKey)
     {
-      Debug.Assert(_tomlWriterState.Peek() == TomlWriterState.WritingKey);
-      _tomlWriterState.Pop();
-    }
-
-    public void BeginWriteKey(string tomlKey, TomlDataType tomlDataType)
-    {
-      var tomlWriterState = _tomlWriterState.Peek();
-      Debug.Assert(tomlWriterState == TomlWriterState.WritingTomlDocument ||
-                   tomlWriterState == TomlWriterState.WritingTable ||
-                   tomlWriterState == TomlWriterState.WritingInlineTableItem);
-
-      if (tomlWriterState != TomlWriterState.WritingInlineTableItem)
-      {
-        _textWriter.WriteLine();
-      }
-
-      writeString(tomlKey, tomlDataType);
-      _textWriter.Write(" = ");
-      _tomlWriterState.Push(TomlWriterState.WritingKey);
-    }
-
-    public void EndWriteKey(string tomlKey)
-    {
+      Debug.Assert(tomlKey != null);
       Debug.Assert(_tomlWriterState.Peek() == TomlWriterState.WritingKey);
       _tomlWriterState.Pop();
     }
 
     public void BeginWritePrimitiveValue(TomlPrimitiveValue tomlPrimitiveValue)
     {
+      Debug.Assert(tomlPrimitiveValue != null);
       var tomlWriterState = _tomlWriterState.Peek();
       Debug.Assert(tomlWriterState == TomlWriterState.WritingTomlDocument ||
                    tomlWriterState == TomlWriterState.WritingTable ||
@@ -382,6 +344,7 @@ namespace RStein.TOML
 
     public void BeginWriteTable(TomlTable tomlTable, TomlKey tableKey)
     {
+      Debug.Assert(tableKey != null);
       var tomlWriterState = _tomlWriterState.Peek();
       Debug.Assert(tomlWriterState == TomlWriterState.WritingTomlDocument ||
                    tomlWriterState == TomlWriterState.WritingArrayOfTables);
@@ -435,29 +398,29 @@ namespace RStein.TOML
 
     public void Write(string text)
     {
+      Debug.Assert(_tomlWriterState.Peek() != TomlWriterState.Idle);
       _textWriter.Write(text);
     }
 
     public void WriteLine(string text)
     {
+      Debug.Assert(_tomlWriterState.Peek() != TomlWriterState.Idle);
       _textWriter.WriteLine(text);
     }
 
     public void WriteLine()
     {
+      Debug.Assert(_tomlWriterState.Peek() != TomlWriterState.Idle);
       _textWriter.WriteLine();
     }
 
     public void BeginWriteArrayOfTables(TomlArrayOfTables table, TomlKey fullKey)
     {
+      Debug.Assert(fullKey != null);
       var tomlWriterState = _tomlWriterState.Peek();
       Debug.Assert(tomlWriterState == TomlWriterState.WritingTomlDocument || tomlWriterState == TomlWriterState.WritingTable || tomlWriterState == TomlWriterState.WritingArrayOfTables);
 
-      if (tomlWriterState != TomlWriterState.Idle)
-      {
-        _textWriter.WriteLine();
-      }
-
+      _textWriter.WriteLine();
       _textWriter.Write("[[");
       writeKey(fullKey);
       _textWriter.Write("]]");
@@ -508,14 +471,16 @@ namespace RStein.TOML
 
     public void BeginWriteComment(TomlComment tomlComment)
     {
+      Debug.Assert(tomlComment != null);
+      assertCanWriteComment();
       _tomlWriterState.Push(TomlWriterState.WritingComment);
       _textWriter.Write($"# {tomlComment.Value}");
     }
 
     public void EndWriteComment(TomlComment tomlComment)
     {
-      Debug.Assert(_tomlWriterState.Pop() == TomlWriterState.WritingComment);
-      _textWriter.Write($"# {tomlComment.Value}");
+      Debug.Assert(tomlComment != null);
+      Debug.Assert(_tomlWriterState.Peek() == TomlWriterState.WritingComment);
       _tomlWriterState.Pop();
     }
 
@@ -525,6 +490,7 @@ namespace RStein.TOML
 
     private async ValueTask writeKeyAsync(TomlKey key)
     {
+      Debug.Assert(key != null);
       var currentKey = key;
       do
       {
@@ -534,7 +500,7 @@ namespace RStein.TOML
       } while (currentKey != null);
     }
 
-    private async Task writeKeyPartAsync(TomlKey key)
+    private async ValueTask writeKeyPartAsync(TomlKey key)
     {
       await writeStringAsync(key.RawKey, (TomlDataType) key.Type).ConfigureAwait(false);
       if (requiresDotAfterKeyPart(key))
@@ -636,6 +602,7 @@ namespace RStein.TOML
 
     private void writeKey(TomlKey key)
     {
+      Debug.Assert(key != null);
       var currentKey = key;
       do
       {
@@ -735,37 +702,17 @@ namespace RStein.TOML
 
     #endregion
 
-    #region Private static helpers
+    #region Private helpers
 
-    private static (string? escaped, bool needsEscape) tryEscapeChar(char c)
+    [Conditional("DEBUG")]
+    private void assertCanWriteComment()
     {
-      if (!shouldEscapeChar(c))
-      {
-        return (null, false);
-      }
-
-      switch (c)
-      {
-        case '\t':
-          return (@"\t", true);
-        case '\n':
-          return (@"\n", true);
-        case '\f':
-          return (@"\f", true);
-        case '\r':
-          return (@"\r", true);
-        case '"':
-          return (@"\""", true);
-        case '\\':
-          return (@"\\", true);
-        case '\b':
-          return (@"\b", true);
-        default:
-          return ($"\\u{(ushort)c:X4}", true);
-      }
+      var tomlWriterState = _tomlWriterState.Peek();
+      Debug.Assert(tomlWriterState != TomlWriterState.Idle &&
+                   tomlWriterState != TomlWriterState.WritingKey &&
+                   tomlWriterState != TomlWriterState.WritingPrimitiveValue &&
+                   tomlWriterState != TomlWriterState.WritingComment);
     }
-
-    private static bool shouldEscapeChar(char c) => char.IsControl(c) || c < ' ' || c == '"' || c == '\\';
 
     private static bool requiresDotAfterKeyPart(TomlKey key)
     {
