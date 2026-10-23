@@ -206,6 +206,11 @@ namespace RStein.TOML
     /// <inheritdoc />
     public void Add(KeyValuePair<TomlKey, TomlToken> item)
     {
+      if (item.Value == null)
+      {
+        throw new ArgumentNullException(nameof(item), "The value of the item cannot be null.");
+      }
+
       if (item.Value is TomlTable tomlTable && tomlTable.IsUntaggedTable())
       {
         if (Name.Equals(ROOT_TABLE_NAME, StringComparison.OrdinalIgnoreCase))
@@ -253,8 +258,14 @@ namespace RStein.TOML
     /// Adds a nested table to this table.
     /// </summary>
     /// <param name="tomlTable">The table to add.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="tomlTable"/> is <c>null</c>.</exception>
     public void Add(TomlTable tomlTable)
     {
+      if (tomlTable == null)
+      {
+        throw new ArgumentNullException(nameof(tomlTable));
+      }
+
       Add(tomlTable.FullName, tomlTable);
     }
 
@@ -262,8 +273,14 @@ namespace RStein.TOML
     /// Adds a nested array to this table.
     /// </summary>
     /// <param name="tomlArray">The array to add.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="tomlArray"/> is <c>null</c>.</exception>
     public void Add(TomlArray tomlArray)
     {
+      if (tomlArray == null)
+      {
+        throw new ArgumentNullException(nameof(tomlArray));
+      }
+
       Add(tomlArray.FullName, tomlArray);
     }
 
