@@ -2320,24 +2320,55 @@ namespace RStein.TOML
       parserState.OpenConstructs.Pop();
     }
 
-    private static async ValueTask skipWhitespacesAndNewLines<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
+    // The sync path (useAsync == false) must not pay for an async state machine per character,
+    // so these helpers only dispatch: sync bodies run inline, async bodies are separate async methods.
+    private static ValueTask skipWhitespacesAndNewLines<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
+      where TInputReader : struct, IInputReader
+    {
+      if (useAsync)
+      {
+        return skipWhitespacesAndNewLinesAsync(parserState);
+      }
+
+      while (!parserState.Eof && (isWhiteSpace(parserState.CurrentChar) || isNewLineChar(parserState)))
+      {
+        skipWhiteSpacesSync(parserState);
+        skipNewLineSync(parserState);
+      }
+
+      return default;
+    }
+
+    private static async ValueTask skipWhitespacesAndNewLinesAsync<TInputReader>(ParserState<TInputReader> parserState)
       where TInputReader : struct, IInputReader
     {
       while (!parserState.Eof && (isWhiteSpace(parserState.CurrentChar) || isNewLineChar(parserState)))
       {
-        await skipWhiteSpaces(parserState, useAsync).ConfigureAwait(false);
-        await skipNewLine(parserState, useAsync).ConfigureAwait(false);
+        await skipWhiteSpaces(parserState, useAsync: true).ConfigureAwait(false);
+        await skipNewLine(parserState, useAsync: true).ConfigureAwait(false);
       }
     }
 
-    private static async ValueTask skipNewLine<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
+    private static ValueTask skipNewLine<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
-      if (parserState.CurrentChar == '\r' )
+      if (useAsync)
+      {
+        return skipNewLineAsync(parserState);
+      }
+
+      skipNewLineSync(parserState);
+      return default;
+    }
+
+    private static void skipNewLineSync<TInputReader>(ParserState<TInputReader> parserState)
+      where TInputReader : struct, IInputReader
+    {
+      if (parserState.CurrentChar == '\r')
       {
         if (peek(parserState) == '\n')
         {
-          await advance(parserState, useAsync).ConfigureAwait(false);
+          advanceSync(parserState);
         }
         else
         {
@@ -2347,48 +2378,116 @@ namespace RStein.TOML
 
       if (parserState.CurrentChar == '\n')
       {
-        await advance(parserState, useAsync).ConfigureAwait(false);
+        advanceSync(parserState);
       }
     }
 
-    private static async ValueTask skipWhiteSpaces<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
+    private static async ValueTask skipNewLineAsync<TInputReader>(ParserState<TInputReader> parserState)
+      where TInputReader : struct, IInputReader
+    {
+      if (parserState.CurrentChar == '\r')
+      {
+        if (peek(parserState) == '\n')
+        {
+          await advanceAsync(parserState).ConfigureAwait(false);
+        }
+        else
+        {
+          throwTomlSerializerException(parserState, @"Invalid bare carriage return ('\r'). Expected '\r\n' or '\n'.");
+        }
+      }
+
+      if (parserState.CurrentChar == '\n')
+      {
+        await advanceAsync(parserState).ConfigureAwait(false);
+      }
+    }
+
+    private static ValueTask skipWhiteSpaces<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
+      where TInputReader : struct, IInputReader
+    {
+      if (useAsync)
+      {
+        return skipWhiteSpacesAsync(parserState);
+      }
+
+      skipWhiteSpacesSync(parserState);
+      return default;
+    }
+
+    private static void skipWhiteSpacesSync<TInputReader>(ParserState<TInputReader> parserState)
       where TInputReader : struct, IInputReader
     {
       while (!parserState.Eof && isWhiteSpace(parserState.CurrentChar))
       {
-        await advance(parserState, useAsync).ConfigureAwait(false);
+        advanceSync(parserState);
       }
     }
 
-    private static async ValueTask<bool> advance<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
+    private static async ValueTask skipWhiteSpacesAsync<TInputReader>(ParserState<TInputReader> parserState)
       where TInputReader : struct, IInputReader
     {
-      char? readC;
-      if ((readC = useAsync
-            ? await parserState.ReadCharAsync().ConfigureAwait(false)
-            : parserState.ReadChar()) != null)
+      while (!parserState.Eof && isWhiteSpace(parserState.CurrentChar))
       {
-        parserState.CurrentChar = readC.Value;
-        if (parserState.PendingNewLine)
-        {
-          //The newline char itself still belongs to the line it terminates.
-          parserState.PendingNewLine = false;
-          ++parserState.CurrentLine;
-          parserState.CurrentColumn = 0;
-        }
+        await advanceAsync(parserState).ConfigureAwait(false);
+      }
+    }
 
-        ++parserState.CurrentColumn;
-        if (parserState.CurrentChar == '\uFFFD')
-        {
-          throwTomlSerializerException(parserState, "The input contains the Unicode replacement character U+FFFD, which usually means invalid UTF-8 encoding.");
-        }
+    private static ValueTask<bool> advance<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
+      where TInputReader : struct, IInputReader
+    {
+      return useAsync
+        ? advanceAsync(parserState)
+        : new ValueTask<bool>(advanceSync(parserState));
+    }
 
-        parserState.PendingNewLine = parserState.CurrentChar == '\n';
+    private static bool advanceSync<TInputReader>(ParserState<TInputReader> parserState)
+      where TInputReader : struct, IInputReader
+    {
+      var readC = parserState.ReadChar();
+      if (readC != null)
+      {
+        onCharRead(parserState, readC.Value);
         return true;
       }
 
       parserState.Eof = true;
       return false;
+    }
+
+    private static async ValueTask<bool> advanceAsync<TInputReader>(ParserState<TInputReader> parserState)
+      where TInputReader : struct, IInputReader
+    {
+      var readC = await parserState.ReadCharAsync().ConfigureAwait(false);
+      if (readC != null)
+      {
+        onCharRead(parserState, readC.Value);
+        return true;
+      }
+
+      parserState.Eof = true;
+      return false;
+    }
+
+    private static void onCharRead<TInputReader>(ParserState<TInputReader> parserState, char readC)
+      where TInputReader : struct, IInputReader
+    {
+      parserState.CurrentChar = readC;
+      if (parserState.PendingNewLine)
+      {
+        //The newline char itself still belongs to the line it terminates.
+        parserState.PendingNewLine = false;
+        ++parserState.CurrentLine;
+        parserState.CurrentColumn = 0;
+      }
+
+      ++parserState.CurrentColumn;
+      if (readC == '\uFFFD')
+      {
+        throwTomlSerializerException(parserState, "The input contains the Unicode replacement character U+FFFD, which usually means invalid UTF-8 encoding.");
+      }
+
+      parserState.PendingNewLine = readC == '\n';
     }
 
     private static char? peek<TInputReader>(ParserState<TInputReader> parserState)
