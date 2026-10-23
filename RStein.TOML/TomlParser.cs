@@ -1432,7 +1432,7 @@ namespace RStein.TOML
         while (true)
         {
           throwIfEof(parserState);
-          if (isMllChar(parserState.CurrentChar))
+          if (parserState.CurrentChar.IsMllChar())
           {
             literalMlBuilder.Append(parserState.CurrentChar);
             await advance(parserState, useAsync).ConfigureAwait(false);
@@ -1498,8 +1498,6 @@ namespace RStein.TOML
         literalMlBuilder.Clear();
       }
     }
-
-    private static bool isMllChar(char ch) => isLiteralChar(ch);
 
     private static async ValueTask<(string parserString, TomlDataType tomlDataType)> parseBasicStringOrBasicMlString<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
@@ -1779,6 +1777,7 @@ namespace RStein.TOML
 
       try
       {
+        appendUnquotedKeyRun(parserState, keyBuilder);
         while (true)
         {
           throwIfEof(parserState);
@@ -1904,6 +1903,12 @@ namespace RStein.TOML
       where TInputReader : struct, IInputReader
     {
       Debug.Assert(parserState.CurrentChar == '\'');
+      if (tryParseSimpleString(parserState, basicString: false, out var simpleString))
+      {
+        await advance(parserState, useAsync).ConfigureAwait(false);
+        return simpleString!;
+      }
+
       try
       {
         var literalStringBuilder = parserState.StringBuilder;
@@ -1922,7 +1927,7 @@ namespace RStein.TOML
             return literalStringBuilder.ToString();
           }
 
-          if (isLiteralChar(parserState.CurrentChar))
+          if (parserState.CurrentChar.IsLiteralChar())
           {
             literalStringBuilder.Append(parserState.CurrentChar);
           }
@@ -1940,12 +1945,135 @@ namespace RStein.TOML
       }
     }
 
-    private static bool isLiteralChar(char ch) => ch == 0x09 || (ch >= 0x20 && ch <= 0x26) || (ch >= 0x28 && ch <= 0x7E) || ch.IsNonAsciiChar();
+#if NET9_0_OR_GREATER
+    private static readonly System.Buffers.SearchValues<char> LITERAL_STRING_STOP_CHARS = createSearchValues(CharExtensions.IsLiteralStringStopChar);
+    private static readonly System.Buffers.SearchValues<char> BASIC_STRING_STOP_CHARS = createSearchValues(CharExtensions.IsBasicStringStopChar);
+    private static readonly System.Buffers.SearchValues<char> UNQUOTED_KEY_CHARS = createSearchValues(CharExtensions.IsAsciiUnquotedKeyChar);
+
+    private static System.Buffers.SearchValues<char> createSearchValues(Func<char, bool> predicate)
+    {
+      var chars = new List<char>();
+      for (var i = 0; i <= char.MaxValue; ++i)
+      {
+        var ch = (char) i;
+        if (predicate(ch))
+        {
+          chars.Add(ch);
+        }
+      }
+
+      return System.Buffers.SearchValues.Create(chars.ToArray());
+    }
+
+    private static int indexOfLiteralStringStop(ReadOnlySpan<char> span) => span.IndexOfAny(LITERAL_STRING_STOP_CHARS);
+
+    private static int indexOfBasicStringStop(ReadOnlySpan<char> span) => span.IndexOfAny(BASIC_STRING_STOP_CHARS);
+
+    private static int indexOfNonUnquotedKeyChar(ReadOnlySpan<char> span) => span.IndexOfAnyExcept(UNQUOTED_KEY_CHARS);
+#else
+    private static int indexOfLiteralStringStop(ReadOnlySpan<char> span)
+    {
+      for (var i = 0; i < span.Length; ++i)
+      {
+        if (span[i].IsLiteralStringStopChar())
+        {
+          return i;
+        }
+      }
+
+      return -1;
+    }
+
+    private static int indexOfBasicStringStop(ReadOnlySpan<char> span)
+    {
+      for (var i = 0; i < span.Length; ++i)
+      {
+        if (span[i].IsBasicStringStopChar())
+        {
+          return i;
+        }
+      }
+
+      return -1;
+    }
+
+    private static int indexOfNonUnquotedKeyChar(ReadOnlySpan<char> span)
+    {
+      for (var i = 0; i < span.Length; ++i)
+      {
+        if (!span[i].IsAsciiUnquotedKeyChar())
+        {
+          return i;
+        }
+      }
+
+      return -1;
+    }
+#endif
+    private static bool tryParseSimpleString<TInputReader>(ParserState<TInputReader> parserState,
+                                                           bool basicString,
+                                                           out string? value)
+      where TInputReader : struct, IInputReader
+    {
+      value = null;
+      if (!parserState.TryGetInput(out var input, out var openingQuoteIndex))
+      {
+        return false;
+      }
+
+      var bodyStart = openingQuoteIndex + 1;
+      var body = input.AsSpan(bodyStart);
+      var closingQuote = basicString
+        ? '"'
+        : '\'';
+      var length = basicString
+        ? indexOfBasicStringStop(body)
+        : indexOfLiteralStringStop(body);
+
+      if (length < 0 || body[length] != closingQuote)
+      {
+        return false;
+      }
+
+      value = input.Substring(bodyStart, length);
+      parserState.Consume(length + 1, closingQuote);
+      return true;
+    }
+
+    private static void appendUnquotedKeyRun<TInputReader>(ParserState<TInputReader> parserState, StringBuilder keyBuilder)
+      where TInputReader : struct, IInputReader
+    {
+      if (!parserState.TryGetInput(out var input, out var firstKeyCharIndex))
+      {
+        return;
+      }
+
+      var run = input.AsSpan(firstKeyCharIndex);
+      var runLength = indexOfNonUnquotedKeyChar(run);
+      if (runLength <= 0)
+      {
+        return;
+      }
+
+      var stopChar = run[runLength];
+      if (stopChar == '\uFFFD')
+      {
+        return;
+      }
+
+      keyBuilder.Append(input, firstKeyCharIndex, runLength);
+      parserState.Consume(runLength, stopChar);
+    }
 
     private static async ValueTask<string> parseBasicString<TInputReader>(ParserState<TInputReader> parserState, bool useAsync)
       where TInputReader : struct, IInputReader
     {
       Debug.Assert(parserState.CurrentChar == '"');
+      if (tryParseSimpleString(parserState, basicString: true, out var simpleString))
+      {
+        await advance(parserState, useAsync).ConfigureAwait(false);
+        return simpleString!;
+      }
 
       try
       {
@@ -2625,6 +2753,16 @@ namespace RStein.TOML
       return _currentTomlTable;
     }
 
+    public bool TryGetInput(out string input, out int currentCharIndex) => _inputReader.TryGetInput(out input, out currentCharIndex);
+
+    public void Consume(int count, char newCurrentChar)
+    {
+      _inputReader.Skip(count);
+      CurrentColumn += count;
+      CurrentChar = newCurrentChar;
+      PendingNewLine = newCurrentChar == '\n';
+    }
+
     public char? ReadChar() => _inputReader.ReadChar();
     public char? PeekChar() => _inputReader.Peek();
     public ValueTask<char?> ReadCharAsync() => _inputReader.ReadCharAsync();
@@ -2639,6 +2777,9 @@ namespace RStein.TOML
     char? Peek();
     ValueTask<int> ReadAsync(ArraySegment<char> buffer);
     int Read(ArraySegment<char> buffer);
+    bool TryGetInput(out string input, out int currentCharIndex);
+
+    void Skip(int count);
   }
 
 #pragma warning disable IDE0044
@@ -2692,6 +2833,15 @@ namespace RStein.TOML
     {
       return _reader.Read(buffer.Array!, buffer.Offset, buffer.Count);
     }
+
+    public bool TryGetInput(out string input, out int currentCharIndex)
+    {
+      input = string.Empty;
+      currentCharIndex = 0;
+      return false;
+    }
+
+    public void Skip(int count) => throw new NotSupportedException();
   }
 
   internal struct StringInputReader : IInputReader
@@ -2748,6 +2898,15 @@ namespace RStein.TOML
 
       return count;
     }
+
+    public bool TryGetInput(out string input, out int currentCharIndex)
+    {
+      input = _inputString;
+      currentCharIndex = _position - 1;
+      return _position >= 1 && _position <= _inputString.Length;
+    }
+
+    public void Skip(int count) => _position += count;
   }
 #pragma warning restore IDE0044
   // ReSharper restore FieldCanBeMadeReadOnly.Local
