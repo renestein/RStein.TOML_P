@@ -61,9 +61,13 @@ internal class TomlKeyValueTest
   {
     var keyValue = new TomlKeyValue(new TomlKey("key"), new TomlPrimitiveValue(1));
 
-    Assert.That(keyValue.Equals((TomlKeyValue?) null), Is.False);
+    TomlKeyValue? nullKeyValue = null;
     object? nullObject = null;
-    Assert.That(keyValue.Equals(nullObject), Is.False);
+    var equalsNullKeyValue = keyValue.Equals(nullKeyValue);
+    var equalsNullObject = keyValue.Equals(nullObject);
+
+    Assert.That(equalsNullKeyValue, Is.False);
+    Assert.That(equalsNullObject, Is.False);
   }
 
   [Test]

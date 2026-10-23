@@ -54,9 +54,13 @@ internal class TomlCommentTest
   {
     var comment = new TomlComment("text");
 
-    Assert.That(comment.Equals((TomlComment?) null), Is.False);
+    TomlComment? nullComment = null;
     object? nullObject = null;
-    Assert.That(comment.Equals(nullObject), Is.False);
+    var equalsNullComment = comment.Equals(nullComment);
+    var equalsNullObject = comment.Equals(nullObject);
+
+    Assert.That(equalsNullComment, Is.False);
+    Assert.That(equalsNullObject, Is.False);
   }
 
   [Test]
