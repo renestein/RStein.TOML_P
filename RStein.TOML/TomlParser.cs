@@ -2831,7 +2831,19 @@ namespace RStein.TOML
 
     public int Read(ArraySegment<char> buffer)
     {
-      return _reader.Read(buffer.Array!, buffer.Offset, buffer.Count);
+      var total = 0;
+      while (total < buffer.Count)
+      {
+        var read = _reader.Read(buffer.Array!, buffer.Offset + total, buffer.Count - total);
+        if (read == 0)
+        {
+          break;
+        }
+
+        total += read;
+      }
+
+      return total;
     }
 
     public bool TryGetInput(out string input, out int currentCharIndex)
