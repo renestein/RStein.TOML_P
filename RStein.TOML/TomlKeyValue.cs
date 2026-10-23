@@ -10,6 +10,7 @@ namespace RStein.TOML
     {
       Key = key;
       Value = value;
+      Comment = tomlComment;
     }
 
     public TomlKey Key
@@ -39,7 +40,7 @@ namespace RStein.TOML
         return true;
       }
 
-      return Equals(Key, other.Key) && Equals(Value, other.Value) && Equals(Comment, other.Comment);
+      return Equals(Key, other.Key) && Equals(Value, other.Value);
     }
 
     public override bool Equals(object? obj)
@@ -68,7 +69,6 @@ namespace RStein.TOML
       {
         var hashCode = (Key != null ? Key.GetHashCode() : 0);
         hashCode = (hashCode * 397) ^ (Value != null ? Value.GetHashCode() : 0);
-        hashCode = (hashCode * 397) ^ (Comment != null ? Comment.GetHashCode() : 0);
         return hashCode;
       }
     }
