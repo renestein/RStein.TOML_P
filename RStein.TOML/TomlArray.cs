@@ -271,6 +271,11 @@ namespace RStein.TOML
     public void Insert(int index,
                        TomlToken item)
     {
+      if (item == null)
+      {
+        throw new ArgumentNullException(nameof(item));
+      }
+
       _tokens.Insert(index, item);
     }
 
@@ -288,7 +293,7 @@ namespace RStein.TOML
     public override TomlToken this[int index]
     {
       get => _tokens[index];
-      set => _tokens[index] = value;
+      set => _tokens[index] = value ?? throw new ArgumentNullException(nameof(value));
     }
 
     /// <summary>
@@ -309,7 +314,7 @@ namespace RStein.TOML
     /// <inheritdoc />
     public override string ToString()
     {
-      return $"{nameof(_tokens)}: {_tokens}, {nameof(Name)}: {Name}, {nameof(Count)}: {Count}";
+      return $"{nameof(Name)}: {Name}, {nameof(Count)}: {Count}";
     }
   }
 }
