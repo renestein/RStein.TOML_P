@@ -123,6 +123,11 @@ namespace RStein.TOML
         return true;
       }
 
+      if (!string.Equals(RawKey, other.RawKey, StringComparison.Ordinal))
+      {
+        return false;
+      }
+
       return (NextKeyPart == null && other.NextKeyPart == null) || (NextKeyPart?.Equals(other.NextKeyPart) ?? false);
     }
 
