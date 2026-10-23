@@ -108,7 +108,7 @@ namespace RStein.TOML
           continue;
         }
 
-        if (!writer.HasState(TomlWriterState.WritingInlineTable) && !(keyValue.Value is TomlArrayOfTables))
+        if (!writer.IsInsideInlineTable && !(keyValue.Value is TomlArrayOfTables))
         {
           if (nestedTable == null || !nestedTable.HasFromKeyDefinition || (nestedTable.HasFromKeyDefinition && nestedTable.HasFromInlineTableDefinition))
           {
@@ -418,7 +418,7 @@ namespace RStein.TOML
         var firstItem = true;
         foreach (var item in tomlArrayOfTables)
         {
-          if (firstItem && writer.LastState != TomlWriterState.WritingTomlDocument)
+          if (firstItem && !writer.IsAtDocumentLevel)
           {
             if (context.UseAsync)
               await writer.WriteLineAsync().ConfigureAwait(false);
